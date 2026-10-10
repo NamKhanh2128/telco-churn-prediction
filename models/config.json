@@ -1,0 +1,10 @@
+{
+  "cost_mode": "classification",
+  "cost_action": 50,
+  "threshold_source": "validation",
+  "model": "random_forest",
+  "threshold": 0.1163,
+  "cost_fp": 50,
+  "cost_fn": 500,
+  "savings_vs_default": 56700.0
+}

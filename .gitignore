@@ -1,0 +1,46 @@
+# Byte-compiled
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+venv/
+.venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Data (quá lớn để push lên git)
+data/raw/*.csv
+data/raw/**/*.csv
+data/processed/
+
+# Trained models
+models/*.joblib
+models/*.pkl
+models/**/*.joblib
+models/**/*.pkl
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Figures (có thể regenerate)
+figures/*.png
+figures/*.jpg
+
+# Results (có thể regenerate)
+results/*.json
+results/*.csv
+results/**/*.json
+results/**/*.csv
+
+# Docker
+.dockerignore

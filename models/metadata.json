@@ -1,0 +1,91 @@
+{
+  "model_version": "rf-calibrated-v1",
+  "model_file": "rf_best.joblib",
+  "feature_columns": [
+    "gender",
+    "SeniorCitizen",
+    "Partner",
+    "Dependents",
+    "tenure",
+    "PhoneService",
+    "MultipleLines",
+    "InternetService",
+    "OnlineSecurity",
+    "OnlineBackup",
+    "DeviceProtection",
+    "TechSupport",
+    "StreamingTV",
+    "StreamingMovies",
+    "Contract",
+    "PaperlessBilling",
+    "PaymentMethod",
+    "MonthlyCharges"
+  ],
+  "numeric_features": [
+    "tenure",
+    "MonthlyCharges",
+    "SeniorCitizen"
+  ],
+  "categorical_features": [
+    "gender",
+    "Partner",
+    "Dependents",
+    "PhoneService",
+    "MultipleLines",
+    "InternetService",
+    "OnlineSecurity",
+    "OnlineBackup",
+    "DeviceProtection",
+    "TechSupport",
+    "StreamingTV",
+    "StreamingMovies",
+    "Contract",
+    "PaperlessBilling",
+    "PaymentMethod"
+  ],
+  "global_feature_importance": {
+    "gender": 0.0312624,
+    "SeniorCitizen": 0.02060689,
+    "Partner": 0.0262654,
+    "Dependents": 0.02361117,
+    "tenure": 0.21683305,
+    "PhoneService": 0.00517757,
+    "MultipleLines": 0.02646883,
+    "InternetService": 0.05560637,
+    "OnlineSecurity": 0.03919191,
+    "OnlineBackup": 0.0315391,
+    "DeviceProtection": 0.02898574,
+    "TechSupport": 0.03640231,
+    "StreamingTV": 0.02509006,
+    "StreamingMovies": 0.02762394,
+    "Contract": 0.10602684,
+    "PaperlessBilling": 0.02754842,
+    "PaymentMethod": 0.07130546,
+    "MonthlyCharges": 0.20045453
+  },
+  "total_charges_policy": "drop",
+  "calibration": {
+    "enabled": true,
+    "method": "sigmoid",
+    "cv_folds": 5
+  },
+  "split": {
+    "train": 4577,
+    "validation": 1057,
+    "test": 1409,
+    "random_state": 42
+  },
+  "threshold": {
+    "cost_mode": "classification",
+    "cost_action": 50,
+    "threshold_source": "validation",
+    "model": "random_forest",
+    "threshold": 0.1163,
+    "cost_fp": 50,
+    "cost_fn": 500,
+    "savings_vs_default": 56700.0
+  },
+  "dataset_sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91",
+  "python_version": "3.13.11",
+  "sklearn_version": "1.8.0"
+}
