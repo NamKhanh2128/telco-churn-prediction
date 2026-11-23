@@ -19,7 +19,7 @@
 - Chi phí **giả định** FP = $50, FN = $500 → ngưỡng tối ưu trên IBM ≈ 0.06 (recall ≈ 0.98,
   precision ≈ 0.36). Hệ quả: demo gắn nhãn "Churn" cho cả khách hợp đồng 2 năm, xác suất 8.5%.
   **Đây là vấn đề lớn nhất về mặt thuyết phục của demo.**
-- Hải Anh viết `src/policy_analysis.py`: độ nhạy theo tỉ lệ chi phí và theo seed, top-k, A4,
+- Nam Khánh viết `src/policy_analysis.py`: độ nhạy theo tỉ lệ chi phí và theo seed, top-k, A4,
   reliability diagram. Kết quả nằm ở `results/policy/` và `figures/policy/`.
 
 ## Đọc trước
@@ -39,7 +39,7 @@
 
   Đưa ra 2–3 kịch bản (thận trọng / trung bình / lạc quan), nói rõ dùng `classification` hay
   `action` cost và vì sao.
-- [ ] **Đề xuất cho D4** — chính sách cho demo, phối hợp với Nam Khánh. Các phương án:
+- [ ] **Đề xuất cho D4** — chính sách cho demo, phối hợp với Hải Anh (người làm API). Các phương án:
   - (a) ngưỡng tối ưu theo chi phí thật;
   - (b) **top-k theo ngân sách**: chỉ liên hệ 10–20% khách rủi ro nhất, dựa trên lift@k;
   - (c) 3 mức rủi ro theo quantile xác suất.
@@ -54,7 +54,7 @@
 ### Tuần 2 (30/11–06/12) — diễn giải kết quả, khung slide
 
 - [ ] **Sau khi D3 chốt:** gửi PR nhỏ cập nhật `COST_FP`, `COST_FN`, `COST_ACTION` trong
-  `src/config.py` (trước 04/12), rồi báo Hải Anh (phân tích ngưỡng) và Nam Khánh (chạy final).
+  `src/config.py` (trước 04/12), rồi báo Nam Khánh (phân tích ngưỡng và chạy final).
 - [ ] **Notebook `notebooks/04_threshold_business.ipynb`**, dùng kết quả của `src/policy_analysis.py`
   và model đã lưu:
   - Chọn bảng/hình chính cho mục 5.3 từ `results/policy/` và `figures/policy/`.
@@ -87,18 +87,18 @@
 - [ ] **Đối chiếu số liệu** (trước 18/12): kiểm tra mọi con số trong `docs/report/` và slide khớp
   `reports/results_snapshot.md` của tag `v1.0-results`; gửi danh sách chỗ lệch cho người viết sửa
   và báo Hải Anh.
-- [ ] Review chéo chương 1, 4.2, 5.2, 7.1 (Hải Anh).
+- [ ] Review chéo mục 4.1, 4.2, 5.2 (Nam Khánh).
 - [ ] Viết câu trả lời phần mình trong `docs/defense_qa.md`. Tham gia 2 buổi tổng duyệt.
 
 ## Phụ thuộc
 
 - **Cần từ:**
-  - Hải Anh: kết quả D1, D3; kết quả `src/policy_analysis.py`.
-  - Nam Khánh: cách API dùng ngưỡng/mức rủi ro.
+  - Hải Anh: kết quả D1, D3; cách API dùng ngưỡng/mức rủi ro.
+  - Nam Khánh: kết quả `src/policy_analysis.py`.
   - Quỳnh Anh: các hạn chế về dữ liệu.
 - **Cung cấp cho:**
-  - Hải Anh: đề xuất chi phí D3 (27/11).
-  - Nam Khánh: chính sách D4 và `COST_*` (04/12).
+  - Hải Anh: đề xuất chi phí D3 (27/11); chính sách D4 (để đưa vào API).
+  - Nam Khánh: `COST_*` (04/12).
   - Cả nhóm: khung slide (06/12) và bản slide cuối; danh sách chỗ lệch số liệu (18/12).
 
 ## Câu hỏi bảo vệ cần chuẩn bị
