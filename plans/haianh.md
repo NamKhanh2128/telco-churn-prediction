@@ -1,17 +1,17 @@
-# Plan — Lê Hải Anh · Trưởng nhóm · Hệ thống & triển khai
+# Plan — Lê Hải Anh · Trưởng nhóm · Hệ thống & sản phẩm cuối
 
 - **Branch:** `haianh/system-deploy`
 - **Vùng file phụ trách:**
   - Hệ thống: `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`,
-    `src/download_data.py` (mới), `tests/test_api.py` (mới), `.github/`
-  - Tài liệu: `README.md`, `.gitignore`, `PLAN.md`, `mustdo.md`
+    `tests/test_api.py` (mới), `.github/`
+  - Tài liệu: `README.md`, `.gitignore`, `PLAN.md`, `mustdo.md`, `docs/slides/`, `docs/defense_qa.md`
   - Báo cáo: `docs/report/00-outline.md`, `01-gioi-thieu.md`, `06-he-thong.md`, `07-1-ket-luan.md`
     và bản ráp cuối cùng
 - **Mục tiêu:**
   1. Chốt các quyết định với giảng viên để cả nhóm không bị chặn.
-  2. Môi trường chạy giống nhau cho mọi người: phiên bản thư viện, CI, dữ liệu.
-  3. Demo công khai chạy đúng model của tag `v1.0-results`.
-  4. Ráp báo cáo cuối cùng.
+  2. Môi trường chạy giống nhau cho mọi người (phiên bản thư viện, CI) và demo công khai chạy đúng
+     model của tag `v1.0-results`.
+  3. Ráp các sản phẩm cuối: báo cáo, slide, bộ câu hỏi bảo vệ.
 
 ## Đọc trước
 
@@ -45,10 +45,8 @@
   Các test đọc CSV thật sẽ fail trên CI vì dữ liệu không có trong git → thêm
   `pytest.mark.skipif(not path.exists(), ...)` cho các test đó (PR nhỏ, làm sớm; báo Nam Khánh vì
   `tests/test_pipeline.py` thuộc vùng của Khánh).
-- [ ] **`src/download_data.py`:** tải Iranian (UCI) và Orange (mirror GitHub), kiểm tra SHA-256 theo
-  bảng trong `PLAN.md`; IBM ghi hướng dẫn tải từ Kaggle. Giúp các bạn tự lấy dữ liệu đúng phiên bản.
 
-### Tuần 2 (30/11–06/12) — API
+### Tuần 2 (30/11–06/12) — API, khung slide
 
 - [ ] **Kích thước model deploy:** nén bằng `joblib.dump(..., compress=3)`, kết hợp phương án
   calibration mà Nam Khánh chốt. Mục tiêu < 25 MB; so metric trước/sau qua snapshot.
@@ -58,10 +56,13 @@
   - Hàm top factors trong `api/predict.py`.
 
   Hoặc thiết kế API chọn dataset theo `models/metadata.json`. Bắt đầu tuần 2, xong tuần 3.
-- [ ] **Áp dụng chính sách D4 vào API** (ngưỡng / top-k / mức rủi ro theo đề xuất của Nhật Linh).
+- [ ] **Áp dụng chính sách D4 vào API** theo cấu hình Nhật Linh gửi (ngưỡng / top-k / mức rủi ro).
   Hiện `risk_level` dùng cứng 0.7 và ngưỡng chi phí.
   (Tùy chọn) top factors theo SHAP từng khách, hàm do Nam Khánh cung cấp.
 - [ ] **Review PR** về API, giao diện, CI và tài liệu.
+- [ ] **Khung slide** (mẫu + bố cục 15–20 slide) gửi cả nhóm **trước 06/12**: bài toán → dữ liệu →
+  phương pháp → kết quả so sánh → RF & giải thích → ngưỡng/kinh doanh → demo → hạn chế → kết luận.
+  Ghi rõ ai làm slide nào (mỗi người 2–3 slide phần của mình).
 
 ### Tuần 3 (07–13/12) — deploy và viết
 
@@ -71,8 +72,8 @@
   - (b) đẩy model lên Hugging Face Hub;
   - (c) nếu model sau khi nén < 50 MB, thêm ngoại lệ `!models/deploy/*.joblib` vào `.gitignore`.
 
-  **Không commit token/secret** — dùng biến môi trường của nền tảng.
-- [ ] Kiểm tra `/health`, `/predict`, giao diện trên URL công khai; ghi URL vào `README.md`.
+  **Không commit token/secret** — dùng biến môi trường của nền tảng. Kiểm tra `/health`, `/predict`,
+  giao diện trên URL công khai; ghi URL vào `README.md`.
 - [ ] **`tests/test_api.py`** dùng `fastapi.testclient.TestClient`: `/health` 200; `/predict` 200 với
   1 khách rủi ro cao và 1 khách rủi ro thấp; 422 khi thiếu trường bắt buộc. Skip nếu chưa có model.
 - [ ] **Chương 1 – Giới thiệu:** bối cảnh churn trong viễn thông, chi phí giữ chân so với tìm khách
@@ -80,29 +81,31 @@
 - [ ] **Chương 6 – Hệ thống demo:**
   - Sơ đồ kiến trúc: pipeline huấn luyện → model artifact + `metadata.json` → FastAPI → giao diện.
   - Đặc tả API (request/response mẫu), ảnh chụp giao diện, hướng dẫn chạy local/Docker, URL công khai.
-- [ ] Làm 2–3 slide phần hệ thống/demo theo khung của Nhật Linh.
+- [ ] Làm 2–3 slide phần hệ thống/demo.
 
-### Tuần 4 (14–20/12) — ráp báo cáo và bảo vệ
+### Tuần 4 (14–20/12) — ráp sản phẩm cuối và bảo vệ
 
 - [ ] **Mục 7.1 – Kết luận & hướng phát triển.**
-- [ ] Ráp toàn bộ `docs/report/*.md` sang định dạng nộp (D6); thống nhất văn phong, đánh số
-  hình/bảng, tài liệu tham khảo.
-- [ ] Sau khi Nhật Linh đối chiếu số liệu (18/12): sửa các chỗ lệch còn lại khi ráp; tick `mustdo.md`
-  và checklist mục 8 trong `PLAN.md`.
+- [ ] **Ráp báo cáo:** chuyển toàn bộ `docs/report/*.md` sang định dạng nộp (D6); thống nhất văn phong,
+  đánh số hình/bảng, tài liệu tham khảo. Sau khi Nam Khánh đối chiếu số liệu (18/12): sửa các chỗ lệch
+  còn lại; tick `mustdo.md` và checklist mục 8 trong `PLAN.md`.
+- [ ] **Ghép slide** của cả nhóm, cập nhật số theo snapshot tag `v1.0-results`, thống nhất định dạng.
 - [ ] `README.md` cuối cùng (dataset chính, link snapshot, URL demo, cách tái lập) và **demo offline
   dự phòng**: chạy local bằng `uvicorn` hoặc `docker compose up` phòng khi mạng hỏng; quay video demo ngắn.
 - [ ] Review chéo mục 4.3, 5.1, 5.4 (Thùy Linh).
-- [ ] Viết câu trả lời phần mình trong `docs/defense_qa.md`. Tổ chức 2 buổi tổng duyệt.
+- [ ] **`docs/defense_qa.md`:** gom câu trả lời của cả 5 người cho các câu hỏi trong plan (hạn 17/12),
+  thống nhất định dạng; tổ chức 2 buổi tổng duyệt.
 
 ## Phụ thuộc
 
 - **Cần từ:**
   - Quỳnh Anh: tóm tắt dữ liệu (27/11); data dictionary (cho form nhập liệu nếu đổi sang Iranian).
-  - Nhật Linh: đề xuất chi phí D3 (27/11), chính sách D4; kết quả đối chiếu số liệu (18/12).
+  - Nhật Linh: đề xuất chi phí D3 (27/11); cấu hình chính sách D4 (04/12).
   - Nam Khánh: quyền truy cập và dữ liệu (25/11); model cuối và phương án calibration (06/12);
-    (tùy chọn) hàm SHAP cho API.
+    danh sách chỗ lệch số liệu (18/12); (tùy chọn) hàm SHAP cho API.
+  - Cả nhóm: slide phần mình, câu trả lời câu hỏi bảo vệ (17/12).
 - **Cung cấp cho:**
-  - Cả nhóm: kết quả D1–D6 (29/11), CI, URL demo (13/12), báo cáo bản cuối.
+  - Cả nhóm: kết quả D1–D6 (29/11), CI, khung slide (06/12), URL demo (13/12), báo cáo và slide bản cuối.
   - Nam Khánh: D1 (dataset chính cho phân tích RF).
 
 ## Câu hỏi bảo vệ cần chuẩn bị
