@@ -2,7 +2,8 @@
 
 Usage:
     python -m src.reproduce            # full final protocol (tuned, ~15-30 min)
-    python -m src.reproduce --quick    # untuned smoke run
+    python -m src.reproduce --quick    # untuned smoke run; snapshot goes to
+                                       # results/results_snapshot_quick.md (ignored)
 
 Steps (in order):
     1. pytest                                    — abort if any test fails

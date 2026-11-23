@@ -36,11 +36,9 @@ Thumbs.db
 figures/*.png
 figures/*.jpg
 
-# Results (có thể regenerate)
-results/*.json
-results/*.csv
-results/**/*.json
-results/**/*.csv
+# Results (có thể regenerate) — toàn bộ thư mục, kể cả results_snapshot_quick.md.
+# Số liệu chính thức được export sang reports/results_snapshot.md (có track).
+results/
 
 # Docker
 .dockerignore

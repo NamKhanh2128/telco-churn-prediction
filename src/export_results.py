@@ -6,6 +6,10 @@ Usage:
 Reads only generated artifacts under results/ (which are git-ignored) and writes
 reports/results_snapshot.md (which is tracked). README, mustdo and the written
 report should quote numbers from this snapshot, never type them by hand.
+
+If the last `src.reproduce` run was `--quick`, the snapshot goes to the
+git-ignored results/results_snapshot_quick.md instead, so smoke runs on a
+member's machine never overwrite the official numbers.
 """
 
 import json
@@ -15,6 +19,7 @@ import pandas as pd
 from src.config import COST_FN, COST_FP, PROJECT_ROOT, RESULTS_DIR
 
 OUT_PATH = PROJECT_ROOT / 'reports' / 'results_snapshot.md'
+QUICK_OUT_PATH = RESULTS_DIR / 'results_snapshot_quick.md'
 RUNS_DIR = RESULTS_DIR / 'dataset_runs'
 
 
@@ -107,9 +112,11 @@ def _stability_table():
     return table[table['metric'].isin(keep)].reset_index(drop=True)
 
 
-def main():
+def main(out_path=None):
     log_path = RESULTS_DIR / 'reproduce_log.json'
     log = _load_json(log_path) if log_path.exists() else {}
+    if out_path is None:
+        out_path = QUICK_OUT_PATH if log.get('mode') == 'quick' else OUT_PATH
     ibm_meta = _load_json(RUNS_DIR / 'ibm' / 'metadata.json')
     split = ibm_meta['split']
 
@@ -156,9 +163,9 @@ def main():
             '',
         ]
 
-    OUT_PATH.parent.mkdir(parents=True, exist_ok=True)
-    OUT_PATH.write_text('\n'.join(parts), encoding='utf-8')
-    print(f'Saved {OUT_PATH}')
+    out_path.parent.mkdir(parents=True, exist_ok=True)
+    out_path.write_text('\n'.join(parts), encoding='utf-8')
+    print(f'Saved {out_path}')
 
 
 if __name__ == '__main__':
