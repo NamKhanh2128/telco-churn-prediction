@@ -41,7 +41,8 @@
 - [ ] **Buổi hướng dẫn kỹ thuật cho nhóm** (30–45 phút, **trước 28/11**): cấu trúc code, cách chạy
   `python -m src.reproduce --quick`, cách viết test, cách mở PR. Kết thúc buổi, mỗi bạn chạy được
   pipeline trên máy mình.
-- [ ] **Khung benchmark 3 dataset** (**trước 27/11**, để Thùy Linh thêm DT/KNN/SVM vào):
+  - ⏳ Tài liệu cho buổi này đã có: `docs/huong-dan-ky-thuat.md` (cài đặt, cấu trúc code, công thức bắt đầu cho từng người).
+- [x] **Khung benchmark 3 dataset** (**trước 27/11**, để Thùy Linh thêm DT/KNN/SVM vào):
   - `_fit_model` trong `src/compare_datasets.py`: khi có `--tune`, tune **mọi** mô hình có lưới tham số
     (lấy lưới theo tên mô hình; lưu ý tiền tố `classifier__estimator__` khi mô hình bị bọc bởi
     `CalibratedClassifierCV`).
@@ -49,15 +50,17 @@
     với các cột `accuracy`, `precision_churn`, `recall_churn`, `f1_churn`, `f1_macro`, `roc_auc`,
     `average_precision`, `train_time_s`, `best_params`; thêm section tương ứng trong `src/export_results.py`.
   - **Không đổi tên/xóa cột** của `dataset_comparison.csv`, vì snapshot §3 đang đọc nó. Viết test cho khung.
-- [ ] **`src/ablation.py`** (chạy bằng `python -m src.ablation`, ghi `results/ablation/*.csv`):
+  - ✅ Xong (24/11): `BENCHMARK_MODELS`, `MODEL_PARAM_GRIDS`, `model_comparison_long.csv`, snapshot §5; CV khi tune trên Iranian chia theo nhóm.
+- [x] **`src/ablation.py`** (chạy bằng `python -m src.ablation`, ghi `results/ablation/*.csv`):
   - **A2:** RF + SMOTE (dùng `imblearn.pipeline.Pipeline`, SMOTE chỉ áp trong fold train) vs RF +
     `class_weight` vs RF không xử lý mất cân bằng → F1/Recall/Precision lớp churn, PR-AUC.
   - **A3:** RF có vs không `StandardScaler` (kỳ vọng gần như giống hệt → chứng minh cây không cần scale).
   - A1 đã có (`results/dataset_runs/ibm_with_total_charges/`). Cùng split 70/15/15, cùng seed. Viết 1 test nhỏ.
+  - ✅ Xong (24/11): 5 seed × 3 dataset, snapshot §6.
 
 ### Tuần 2 (30/11–06/12) — phân tích RF, độ ổn định, đóng băng số liệu
 
-- [ ] **Notebook `notebooks/02_random_forest_analysis.ipynb`** trên dataset chính (D1):
+- [x] **Notebook `notebooks/02_random_forest_analysis.ipynb`** trên dataset chính (D1):
   - Validation curve theo `n_estimators` (50 → 500) và `max_depth` (3 → None): giải thích bias–variance
     và vì sao bộ tham số tuned (`best_params` trong `results/test_metrics.json`) hợp lý.
   - OOB score (`oob_score=True`) so với điểm CV.
@@ -65,27 +68,33 @@
     top-10 và giải thích vì sao các cách cho kết quả khác nhau.
   - Giải thích cục bộ bằng SHAP cho 3 khách hàng: TP rủi ro cao, FN bị bỏ sót, FP báo nhầm
     (`src/explain.get_top_factors_for_customer`). Lưu hình vào `figures/rf/`.
-- [ ] **`src/model_stability.py`** (chạy bằng `python -m src.model_stability`, ghi
+  - ✅ Xong (24/11): phân tích trong `src/rf_analysis.py` (cả 3 dataset), notebook hiển thị cho IBM — đổi `DATASET` sau khi chốt D1. Snapshot §9.
+- [x] **`src/model_stability.py`** (chạy bằng `python -m src.model_stability`, ghi
   `results/model_stability/*.csv`):
   - 10 seed chia dữ liệu × 6 mô hình (LogReg, DT, RF, KNN, SVM_Linear, SVM_RBF) trên dataset chính,
     dùng `_build_model` (đủ 6 mô hình sau PR của Thùy Linh ~01/12) và tham số đã tune, cố định.
   - Iranian dùng group-aware split cho từng seed (`_group_split_indices`).
   - Xuất mean ± std của Accuracy, Precision, Recall, F1 (lớp churn), ROC-AUC, AP.
-- [ ] **Kiểm định thống kê** RF với mô hình mạnh nhất còn lại:
+  - ✅ Xong (24/11): hiện chạy LogReg và RF; tự nhận DT/KNN/SVM khi Thùy Linh thêm vào `BENCHMARK_MODELS`. Snapshot §7.
+- [x] **Kiểm định thống kê** RF với mô hình mạnh nhất còn lại:
   - Wilcoxon signed-rank trên 10 seed (`scipy.stats.wilcoxon`).
   - McNemar trên tập test, tính từ các cặp bất đồng (`scipy.stats.binomtest`).
   - Ghi `results/model_stability/stat_tests.csv`, có cảnh báo về so sánh nhiều lần.
-- [ ] **Calibration của model deploy:**
+  - ✅ Xong (24/11): `results/model_stability/stat_tests.csv`, snapshot §7.
+- [x] **Calibration của model deploy:**
   - Reliability diagram (`sklearn.calibration.CalibrationDisplay`) cho RF thô, RF đã calibrate,
     LogReg, SVM, kèm bảng Brier/ECE (`figures/rf/`).
   - `models/rf_best.joblib` ≈ 91 MB vì `CalibratedClassifierCV(cv=5)` lưu 5 bản RF: so sánh với
     `ensemble=False` (1 RF + 1 sigmoid) về metric và kích thước; chốt phương án, báo Hải Anh để deploy.
+  - ✅ Đã chốt (24/11): `CALIBRATION_ENSEMBLE = False` — chất lượng như 5 rừng, model IBM 91 MB → 34 MB (snapshot §8). **Cần báo Hải Anh.**
 - [ ] **Review PR code thí nghiệm** của các bạn và nối vào `src/reproduce.py` + `src/export_results.py`:
   - Thùy Linh: DT/KNN/SVM trong benchmark (01/12), lưới tham số cuối (04/12).
   - Nhật Linh: `src/policy_analysis.py` (05/12).
   - Quỳnh Anh: `src/download_data.py` (29/11).
-- [ ] (Tùy chọn) Viết hàm top-factors theo SHAP từng khách cho API, thay cho feature importance toàn
+  - ⏳ Các script của Khánh đã nối vào `src/reproduce.py` + snapshot §5–§9; chờ PR của Thùy Linh, Nhật Linh, Quỳnh Anh.
+- [x] (Tùy chọn) Viết hàm top-factors theo SHAP từng khách cho API, thay cho feature importance toàn
   cục trong `api/predict.py::_get_top_factors`; bàn giao cho Hải Anh.
+  - ✅ Xong (24/11): `src/explain.py::explain_customer` — chạy được với model đã calibrate, ~0.5 giây/khách; hướng dẫn dùng cho Hải Anh ở `docs/huong-dan-ky-thuat.md` mục 5.
 - [ ] **06/12 — Đóng băng số liệu:**
   1. Trên `main` sạch, đã có `COST_*` cuối cùng: chạy `python -m src.reproduce`.
   2. Commit `reports/results_snapshot.md`, `models/config.json`, `models/metadata.json`,
@@ -95,21 +104,25 @@
 
 ### Tuần 3 (07–13/12) — viết
 
-- [ ] **Mục 4.1 – Tiền xử lý & chống rò rỉ:**
+- [x] **Mục 4.1 – Tiền xử lý & chống rò rỉ:**
   - Thứ tự split → fit pipeline chỉ trên train.
   - `TelcoFeatureEngineer`, imputation, one-hot, scaling theo từng loại mô hình.
   - Group-aware split cho Iranian.
   - Seed, SHA-256 của dữ liệu, `src/reproduce.py` và tag kết quả.
-- [ ] **Mục 4.2 – Random Forest:** bagging, chọn ngẫu nhiên đặc trưng, tiêu chí Gini/entropy, OOB,
+  - ✅ Bản nháp: `docs/report/04-1-tien-xu-ly.md`.
+- [x] **Mục 4.2 – Random Forest:** bagging, chọn ngẫu nhiên đặc trưng, tiêu chí Gini/entropy, OOB,
   feature importance, `class_weight="balanced_subsample"`, vì sao cần calibrate xác suất (Platt).
-- [ ] **Mục 5.2 – Phân tích RF & ablation:** kết quả notebook 02, bảng A1–A3, nhận xét. Nói thẳng:
+  - ✅ Bản nháp: `docs/report/04-2-random-forest.md`.
+- [x] **Mục 5.2 – Phân tích RF & ablation:** kết quả notebook 02, bảng A1–A3, nhận xét. Nói thẳng:
   trên IBM, RF không vượt LogReg về ROC-AUC/AP; lợi thế của RF thể hiện trên Orange/Iranian
   (phối hợp với mục 5.4 của Thùy Linh).
+  - ✅ Bản nháp với số liệu thật: `docs/report/05-2-phan-tich-rf-ablation.md` (cập nhật số theo tag `v1.0-results`).
 - [ ] **Bàn giao và hỗ trợ:**
   - Cho Thùy Linh: kết quả độ ổn định và kiểm định (giải thích cách đọc file CSV/hình), dùng ở mục 5.1.
   - Cho Nhật Linh: reliability diagram cho phần calibration ở mục 5.3; cách dùng model RF đã calibrate
     và các hàm chia dữ liệu/dựng mô hình.
 - [ ] Làm 2–3 slide phần Random Forest theo khung của Hải Anh.
+  - ⏳ Nội dung nháp (kèm ghi chú thuyết trình): `docs/slides/namkhanh-random-forest.md`; chờ khung slide của Hải Anh.
 
 ### Tuần 4 (14–20/12)
 
@@ -118,8 +131,10 @@
   và báo Hải Anh.
 - [ ] **Thử tái lập trên máy sạch:** nhờ 1 bạn clone mới → đặt dữ liệu → `python -m src.reproduce`
   → so snapshot với tag `v1.0-results`.
+  - ⏳ Đã thử trên một bản clone sạch ở máy Khánh (24/11, chế độ `--quick`): đạt. Làm lại với tag `v1.0-results` ở tuần 4.
 - [ ] Review chéo mục 4.4, 5.3, 7.2 (Nhật Linh).
 - [ ] Viết câu trả lời phần mình cho `docs/defense_qa.md`. Tham gia 2 buổi tổng duyệt.
+  - ⏳ Câu trả lời đã có: `docs/defense_qa/namkhanh.md`; còn 2 buổi tổng duyệt.
 
 ## Phụ thuộc
 
