@@ -1,6 +1,9 @@
 # Telco Customer Churn Prediction
 
-> A reproducible machine-learning comparison of two telecom customer churn datasets.
+> A reproducible machine-learning comparison of three telecom customer churn datasets.
+>
+> **Team work plan:** see [`PLAN.md`](PLAN.md) — roles, branches, timeline and the
+> per-member plans (`plans/<name>.md` on each member's branch).
 
 ## Quick Start
 
