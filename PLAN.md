@@ -5,7 +5,7 @@
 > khiếu nại, gói cước). **Random Forest là phương pháp chính**, so sánh với **Decision Tree, KNN
 > và SVM**. Đánh giá bằng **Accuracy, Precision, Recall, F1-score**.
 >
-> Cập nhật: 24/11/2026 · Người điều phối: Lê Hải Anh · Kỹ thuật/tích hợp: Nguyễn Đức Nam Khánh
+> Cập nhật: 24/11/2026 · Người điều phối: Lê Hải Anh · Mô hình chính & thí nghiệm: Nguyễn Đức Nam Khánh
 
 ---
 
@@ -16,11 +16,11 @@ Plan chi tiết của từng người nằm ở file `plans/<tên>.md` **trên b
 
 | Thành viên | Vai trò | Branch | Plan chi tiết |
 |---|---|---|---|
-| **Lê Hải Anh** (trưởng nhóm) | Điều phối; Random Forest; ablation, độ ổn định nhiều seed, phân tích ngưỡng; ráp báo cáo | `haianh/rf-main-model` | `plans/haianh.md` |
+| **Lê Hải Anh** (trưởng nhóm) | Điều phối; hệ thống: môi trường, CI, API, giao diện, deploy; ráp báo cáo | `haianh/system-deploy` | `plans/haianh.md` |
 | **Quách Nguyễn Quỳnh Anh** | Dữ liệu, EDA, nguồn gốc dữ liệu, tổng quan tài liệu | `quynhanh/data-eda` | `plans/quynhanh.md` |
 | **Mai Thùy Linh** | Các mô hình so sánh DT/KNN/SVM: siêu tham số, phân tích và trình bày kết quả | `thuylinh/model-comparison` | `plans/thuylinh.md` |
 | **Nguyễn Nhật Linh** | Đánh giá, chi phí và chính sách quyết định, góc nhìn kinh doanh; khung slide | `nhatlinh/evaluation-business` | `plans/nhatlinh.md` |
-| **Nguyễn Đức Nam Khánh** | Hạ tầng và tái lập; benchmark các mô hình trên 3 dataset; API, giao diện, deploy | `namkhanh/infra-deploy` | `plans/namkhanh.md` |
+| **Nguyễn Đức Nam Khánh** | Random Forest (mô hình chính) và các thí nghiệm AI: benchmark, ablation, độ ổn định, phân tích ngưỡng, giải thích mô hình; tái lập kết quả | `namkhanh/rf-main-model` | `plans/namkhanh.md` |
 
 Xem plan của mình: `git checkout <branch>` rồi mở `plans/<tên>.md`, hoặc chọn branch trên GitHub.
 
@@ -63,14 +63,14 @@ Hải Anh mang bảng này đi gặp giảng viên **trước 29/11**, rồi đi
 | # | Quyết định | Phương án | Đề xuất bởi | Hạn | Kết quả |
 |---|---|---|---|---|---|
 | D1 | Dataset chính | IBM Telco (hiện tại) **hoặc** Iranian (khớp mô tả đề tài); 2 dataset còn lại làm benchmark phụ | Hải Anh + Quỳnh Anh | 29/11 | ☐ |
-| D2 | Giao thức đánh giá | 70/15/15 stratified; Iranian dùng group-aware; tuning 5-fold CV theo AP | Thùy Linh | 29/11 | ☐ |
+| D2 | Giao thức đánh giá | 70/15/15 stratified; Iranian dùng group-aware; tuning 5-fold CV theo AP | Thùy Linh + Nam Khánh | 29/11 | ☐ |
 | D3 | Chi phí FP/FN và cách tính | classification cost (FP·c_FP + FN·c_FN) **hoặc** action cost (số KH được liên hệ·c_action + FN·c_FN); 2–3 kịch bản có căn cứ | Nhật Linh | 29/11 | ☐ |
-| D4 | Chính sách quyết định cho demo | ngưỡng tối ưu chi phí / top-k theo ngân sách / 3 mức rủi ro | Nhật Linh + Nam Khánh | 04/12 | ☐ |
-| D5 | Kênh deploy | Render (Docker) / Hugging Face Spaces (Docker) | Nam Khánh | 04/12 | ☐ |
+| D4 | Chính sách quyết định cho demo | ngưỡng tối ưu chi phí / top-k theo ngân sách / 3 mức rủi ro | Nhật Linh + Hải Anh | 04/12 | ☐ |
+| D5 | Kênh deploy | Render (Docker) / Hugging Face Spaces (Docker) | Hải Anh | 04/12 | ☐ |
 | D6 | Định dạng báo cáo nộp | Word / LaTeX (Overleaf) — theo yêu cầu của giảng viên | Hải Anh | 29/11 | ☐ |
 
-**Nếu D1 = Iranian**, ảnh hưởng: Nam Khánh đổi schema API/frontend; Hải Anh phân tích RF/SHAP trên
-Iranian; Thùy Linh lấy Iranian làm bảng so sánh chính; Quỳnh Anh làm data dictionary cho Iranian.
+**Nếu D1 = Iranian**, ảnh hưởng: Nam Khánh phân tích RF/SHAP trên Iranian; Hải Anh đổi schema
+API/giao diện; Thùy Linh lấy Iranian làm bảng so sánh chính; Quỳnh Anh làm data dictionary cho Iranian.
 
 ---
 
@@ -93,14 +93,15 @@ tạo tag `v1.1-results`, cập nhật lại mọi con số.
 ### Phụ thuộc giữa các thành viên
 
 ```
-Hải Anh (D1, D6) ─┬─► Quỳnh Anh: EDA/data dictionary cho dataset chính
+Hải Anh (D1, D6) ─┬─► Nam Khánh: phân tích RF trên dataset chính
+                  ├─► Quỳnh Anh: EDA/data dictionary cho dataset chính
                   ├─► Thùy Linh: bảng so sánh chính trên dataset chính
-                  └─► Nam Khánh: schema API/frontend (nếu đổi dataset)
-Nam Khánh (benchmark DT/KNN/SVM × 3 dataset, ~01/12) ─┬─► Hải Anh: độ ổn định 10 seed + kiểm định
-                                                      └─► Thùy Linh: bảng/hình so sánh mô hình
-Nhật Linh (D3) ─► COST_* ─► Hải Anh: phân tích ngưỡng ─► Nhật Linh: viết mục 5.3
-Hải Anh (độ ổn định, kiểm định) ─► Thùy Linh: viết mục 5.1
-Code thí nghiệm merge trước 05/12 ─► Nam Khánh: tag v1.0-results ─► tất cả: số liệu vào báo cáo/slide
+                  └─► Hải Anh: schema API/giao diện (nếu đổi dataset)
+Nam Khánh (benchmark DT/KNN/SVM × 3 dataset, ~01/12) ─► Thùy Linh: bảng/hình so sánh mô hình
+Nam Khánh (độ ổn định, kiểm định) ─► Thùy Linh: viết mục 5.1
+Nhật Linh (D3) ─► COST_* ─► Nam Khánh: phân tích ngưỡng ─► Nhật Linh: viết mục 5.3
+Code thí nghiệm merge trước 05/12 ─► Nam Khánh: tag v1.0-results ─┬─► tất cả: số liệu vào báo cáo/slide
+                                                                  └─► Hải Anh: deploy model của tag
 ```
 
 ---
@@ -117,19 +118,19 @@ khi merge). Tuần 4, Hải Anh chuyển sang định dạng nộp (D6).
 | 2 | Tổng quan nghiên cứu liên quan | Quỳnh Anh | `docs/report/02-tong-quan.md` |
 | 3 | Dữ liệu và phân tích khám phá (EDA), audit dữ liệu | Quỳnh Anh | `docs/report/03-du-lieu-eda.md` |
 | 4.1 | Tiền xử lý & pipeline chống rò rỉ dữ liệu | Nam Khánh | `docs/report/04-1-tien-xu-ly.md` |
-| 4.2 | Random Forest (lý thuyết, siêu tham số, calibration) | Hải Anh | `docs/report/04-2-random-forest.md` |
+| 4.2 | Random Forest (lý thuyết, siêu tham số, calibration) | Nam Khánh | `docs/report/04-2-random-forest.md` |
 | 4.3 | Decision Tree, KNN, SVM | Thùy Linh | `docs/report/04-3-dt-knn-svm.md` |
 | 4.4 | Độ đo đánh giá, calibration, ngưỡng theo chi phí | Nhật Linh | `docs/report/04-4-danh-gia-nguong.md` |
 | 5.1 | Thiết lập thực nghiệm & so sánh các mô hình | Thùy Linh | `docs/report/05-1-so-sanh-mo-hinh.md` |
-| 5.2 | Phân tích Random Forest & ablation | Hải Anh | `docs/report/05-2-phan-tich-rf-ablation.md` |
+| 5.2 | Phân tích Random Forest & ablation | Nam Khánh | `docs/report/05-2-phan-tich-rf-ablation.md` |
 | 5.3 | Ngưỡng quyết định & phân tích kinh doanh | Nhật Linh | `docs/report/05-3-nguong-chi-phi.md` |
 | 5.4 | So sánh trên 3 dataset | Thùy Linh | `docs/report/05-4-ba-dataset.md` |
-| 6 | Hệ thống demo: API, giao diện, triển khai | Nam Khánh | `docs/report/06-he-thong.md` |
+| 6 | Hệ thống demo: API, giao diện, triển khai | Hải Anh | `docs/report/06-he-thong.md` |
 | 7.1 | Kết luận & hướng phát triển | Hải Anh | `docs/report/07-1-ket-luan.md` |
 | 7.2 | Hạn chế của nghiên cứu | Nhật Linh | `docs/report/07-2-han-che.md` |
 
-**Review chéo (tuần 4):** Hải Anh ↔ Nhật Linh · Quỳnh Anh → chương 6 (Nam Khánh) ·
-Thùy Linh → chương 2–3 (Quỳnh Anh) · Nam Khánh → chương 4.3, 5.1, 5.4 (Thùy Linh).
+**Review chéo (tuần 4):** Nam Khánh ↔ Nhật Linh · Quỳnh Anh → chương 1, 6, 7.1 (Hải Anh) ·
+Thùy Linh → chương 2–3 (Quỳnh Anh) · Hải Anh → mục 4.3, 5.1, 5.4 (Thùy Linh).
 
 **Slide:** mỗi người làm 2–3 slide cho phần của mình; Nhật Linh làm khung slide (trước 06/12) và ghép bản cuối.
 
@@ -149,10 +150,10 @@ snapshot tag `v1.0-results`, gửi danh sách chỗ lệch cho người viết s
 | Vùng | Chủ sở hữu | Người khác muốn sửa thì… |
 |---|---|---|
 | `notebooks/01_*`, `figures/eda/`, `data/raw/**/README.md`, `docs/data_dictionary.md` | Quỳnh Anh | nhắn Quỳnh Anh |
-| `notebooks/02_*`, `src/ablation.py`, `src/model_stability.py`, `src/policy_analysis.py`, `src/explain.py`, `src/optimize_threshold.py`, `src/evaluate.py`, `DEFAULT_RF_PARAMS`/`RF_PARAM_GRID` trong `src/config.py`, `figures/rf/`, `figures/policy/` | Hải Anh | nhắn Hải Anh |
+| Toàn bộ code mô hình & thí nghiệm trong `src/` (`train.py`, `compare_datasets.py`, `preprocessing.py`, `data_loader.py`, `explain.py`, `optimize_threshold.py`, `evaluate.py`, `iranian_audit.py`, `ablation.py`, `model_stability.py`, `policy_analysis.py`, `reproduce.py`, `export_results.py`); `DEFAULT_RF_PARAMS`/`RF_PARAM_GRID` trong `src/config.py`; `tests/test_pipeline.py`; `notebooks/02_*`, `figures/rf/`, `figures/policy/` | Nam Khánh | nhắn Nam Khánh |
 | `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`; `notebooks/03_*`, `figures/models/`, `docs/defense_qa.md`, `docs/report/references.md` | Thùy Linh | nhắn Thùy Linh |
 | `COST_*` trong `src/config.py`, `notebooks/04_*`, `docs/slides/` | Nhật Linh | nhắn Nhật Linh |
-| `src/train.py`, `src/compare_datasets.py`, `src/preprocessing.py`, `src/data_loader.py`, `src/reproduce.py`, `src/export_results.py`, `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `tests/`, `.github/`, `README.md`, `.gitignore` | Nam Khánh | nhắn Nam Khánh |
+| `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `src/download_data.py`, `tests/test_api.py`, `.github/`, `README.md`, `.gitignore` | Hải Anh | nhắn Hải Anh |
 | `PLAN.md`, `mustdo.md` | Hải Anh | PR nhỏ, Hải Anh duyệt |
 
 Script phân tích mới chỉ cần ghi CSV vào `results/<vùng>/`. Nam Khánh sẽ nối nó vào
@@ -207,7 +208,8 @@ git push
 ### Pull Request vào `main`
 
 - PR nhỏ, một chủ đề (ví dụ: "Add KNN/SVM to 3-dataset benchmark"). Mô tả: làm gì, chạy lệnh gì để kiểm tra.
-- Reviewer: **code → Nam Khánh**, **báo cáo/tài liệu → Hải Anh**. Cần 1 approval mới merge.
+- Reviewer: **code mô hình/thí nghiệm (`src/`, `tests/test_pipeline.py`) → Nam Khánh**;
+  **API, giao diện, CI, báo cáo/tài liệu → Hải Anh**. Cần 1 approval mới merge.
 - `python -m pytest -q` phải pass.
 
 ### Không bao giờ commit
