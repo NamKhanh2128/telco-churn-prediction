@@ -3,7 +3,7 @@
 - **Branch:** `thuylinh/model-comparison`
 - **Vùng file phụ trách:**
   - `DEFAULT_*_PARAMS` và `*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`
-  - `notebooks/03_*`, `figures/models/`, `docs/defense_qa.md`
+  - `notebooks/03_*`, `figures/models/`, `docs/defense_qa.md`, `docs/report/references.md`
   - `docs/report/04-3-dt-knn-svm.md`, `05-1-so-sanh-mo-hinh.md`, `05-4-ba-dataset.md`
 - **Mục tiêu:** chịu trách nhiệm về phần so sánh mô hình mà đề tài yêu cầu (**RF vs DT vs KNN vs
   SVM**, theo Accuracy, Precision, Recall, F1): siêu tham số hợp lý, bảng và hình rõ ràng, phân tích
@@ -36,7 +36,9 @@
   - DT: tiêu chí chia Gini/entropy, độ sâu, tỉa cây (`ccp_alpha`), vì sao dễ overfit.
   - KNN: tham số k, độ đo khoảng cách, `weights`, vì sao bắt buộc chuẩn hóa.
   - SVM: lề cực đại, tham số `C`, kernel RBF và `gamma`, vì sao cần Platt scaling để có xác suất.
-- [ ] Tài liệu nền cho mục 4.3; gửi Quỳnh Anh để gộp vào danh mục tài liệu tham khảo chung:
+- [ ] **Danh mục tài liệu tham khảo chung** `docs/report/references.md`: tạo file, chọn một kiểu
+  trích dẫn (APA hoặc IEEE). Các bạn gửi tài liệu của phần mình để bạn gộp (chốt trước 16/12).
+  Tài liệu nền cho mục 4.3:
   - Breiman et al. (1984), *Classification and Regression Trees*
   - Cover & Hart (1967), *Nearest neighbor pattern classification*
   - Cortes & Vapnik (1995), *Support-vector networks*
@@ -56,9 +58,10 @@
   - Heatmap mô hình × dataset theo F1 và ROC-AUC, từ `model_comparison_long.csv`.
   - Biểu đồ cột 4 độ đo chính cho 6 mô hình, error bar = std qua 10 seed (từ
     `results/model_stability/` của Hải Anh).
-- [ ] **So sánh với baseline Chen et al. (2025)** trên IBM. Chỉ dùng con số đã được Quỳnh Anh xác
-  minh từ bài gốc. Lập bảng "nhóm vs bài báo" và giải thích chênh lệch: pipeline chống rò rỉ, cách
-  chia dữ liệu, ngưỡng quyết định.
+- [ ] **So sánh với baseline Chen et al. (2025)** trên IBM: tự tìm bài gốc, xác minh tác giả, nơi
+  đăng và con số baseline (đang ghi ở `telco_churn_pipeline.md` mục 2.2). Không truy được nguồn thì
+  bỏ phần so sánh này. Nếu xác minh được: lập bảng "nhóm vs bài báo" và giải thích chênh lệch:
+  pipeline chống rò rỉ, cách chia dữ liệu, ngưỡng quyết định.
 
 ### Tuần 3 (07–13/12) — viết
 
@@ -87,11 +90,11 @@
 - **Cần từ:**
   - Hải Anh: D1 (dataset chính); kết quả độ ổn định và kiểm định thống kê.
   - Nam Khánh: benchmark đủ mô hình trên 3 dataset (~01/12).
-  - Quỳnh Anh: baseline Chen et al. đã xác minh.
+  - Các bạn: tài liệu tham khảo của phần mình (trước 16/12).
 - **Cung cấp cho:**
   - Hải Anh: đề xuất D2 (27/11); bảng 3 dataset cho lập luận chọn RF.
   - Nam Khánh: lưới tham số cuối (04/12).
-  - Cả nhóm: `docs/defense_qa.md`.
+  - Cả nhóm: `docs/defense_qa.md`, `docs/report/references.md`.
 
 ## Câu hỏi bảo vệ cần chuẩn bị
 
