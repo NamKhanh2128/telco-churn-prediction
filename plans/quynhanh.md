@@ -78,16 +78,16 @@
 
 ### Tuần 4 (14–20/12)
 
-- [ ] Review chéo chương 6 (Nam Khánh): đọc như người ngoài, tự chạy demo theo hướng dẫn.
+- [ ] Review chéo chương 1, 6, 7.1 (Hải Anh): đọc như người ngoài, tự chạy demo theo hướng dẫn.
 - [ ] Sửa chương 2–3 theo góp ý của Thùy Linh và Hải Anh.
 - [ ] Viết câu trả lời phần mình trong `docs/defense_qa.md`.
 
 ## Phụ thuộc
 
 - **Cần từ:** Hải Anh — kết quả D1 (để biết dataset nào làm kỹ nhất).
-- **Cung cấp cho:** Hải Anh — tóm tắt dữ liệu (trước 27/11); Thùy Linh — tài liệu chương 2 cho
-  danh mục tham khảo chung; Nhật Linh — các hạn chế dữ liệu; Nam Khánh — data dictionary (để làm
-  form nhập liệu nếu đổi sang Iranian).
+- **Cung cấp cho:** Hải Anh — tóm tắt dữ liệu (trước 27/11) và data dictionary (để làm form nhập
+  liệu nếu đổi sang Iranian); Thùy Linh — tài liệu chương 2 cho danh mục tham khảo chung; Nhật Linh —
+  các hạn chế dữ liệu.
 
 ## Câu hỏi bảo vệ cần chuẩn bị
 
