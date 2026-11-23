@@ -2,8 +2,7 @@
 
 - **Branch:** `quynhanh/data-eda`
 - **Vùng file phụ trách:** `notebooks/01_*`, `figures/eda/`, `data/raw/**/README.md`,
-  `docs/data_dictionary.md`, `docs/report/02-tong-quan.md`, `docs/report/03-du-lieu-eda.md`,
-  `docs/report/references.md`
+  `docs/data_dictionary.md`, `docs/report/02-tong-quan.md`, `docs/report/03-du-lieu-eda.md`
 - **Mục tiêu:** hiểu và mô tả dữ liệu tốt nhất nhóm; mọi quyết định tiền xử lý/mô hình phải truy
   ngược được về một phát hiện EDA; nguồn gốc, license và trích dẫn của dữ liệu và tài liệu phải chuẩn.
 
@@ -61,11 +60,10 @@
 - [ ] **Tổng quan tài liệu:** kiểm tra 5 tài liệu trong `README.md` và trong `telco_churn_pipeline.md`
   mục 2. Với mỗi tài liệu: tìm bản gốc, xác minh tác giả/năm/nơi đăng, phân loại peer-reviewed hay
   preprint. **Tài liệu nào không truy được nguồn thì đề nghị bỏ**, kể cả các con số trích từ nó
-  (ví dụ baseline của Chen et al. 2025). Bổ sung tài liệu nền tảng: Breiman (2001) *Random Forests*,
-  Machine Learning 45(1). Lập bảng: dataset, phương pháp, độ đo, kết quả, hạn chế.
-- [ ] **Quản lý danh mục tài liệu tham khảo chung** (một file `docs/report/references.md`): gộp tài
-  liệu của bạn với tài liệu Thùy Linh gửi cho mục 4.3; thống nhất một kiểu trích dẫn.
-- [ ] Gửi Thùy Linh con số baseline Chen et al. **đã xác minh** để so sánh ở mục 5.1.
+  (riêng con số baseline của Chen et al. 2025 do Thùy Linh kiểm tra). Bổ sung tài liệu nền tảng:
+  Breiman (2001) *Random Forests*, Machine Learning 45(1). Lập bảng: dataset, phương pháp, độ đo,
+  kết quả, hạn chế. Gửi danh sách tài liệu chương 2 cho Thùy Linh để gộp vào
+  `docs/report/references.md`.
 
 ### Tuần 3 (07–13/12) — viết
 
@@ -81,15 +79,15 @@
 ### Tuần 4 (14–20/12)
 
 - [ ] Review chéo chương 6 (Nam Khánh): đọc như người ngoài, tự chạy demo theo hướng dẫn.
-- [ ] Sửa chương 2–3 theo góp ý của Thùy Linh và Hải Anh. Chốt danh mục tài liệu tham khảo.
+- [ ] Sửa chương 2–3 theo góp ý của Thùy Linh và Hải Anh.
 - [ ] Viết câu trả lời phần mình trong `docs/defense_qa.md`.
 
 ## Phụ thuộc
 
 - **Cần từ:** Hải Anh — kết quả D1 (để biết dataset nào làm kỹ nhất).
-- **Cung cấp cho:** Hải Anh — tóm tắt dữ liệu (trước 27/11); Thùy Linh — baseline Chen et al. đã
-  xác minh; Nhật Linh — các hạn chế dữ liệu; Nam Khánh — data dictionary (để làm form nhập liệu
-  nếu đổi sang Iranian); cả nhóm — danh mục tài liệu tham khảo chung.
+- **Cung cấp cho:** Hải Anh — tóm tắt dữ liệu (trước 27/11); Thùy Linh — tài liệu chương 2 cho
+  danh mục tham khảo chung; Nhật Linh — các hạn chế dữ liệu; Nam Khánh — data dictionary (để làm
+  form nhập liệu nếu đổi sang Iranian).
 
 ## Câu hỏi bảo vệ cần chuẩn bị
 
