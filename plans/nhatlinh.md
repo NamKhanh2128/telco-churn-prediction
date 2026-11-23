@@ -1,17 +1,17 @@
-# Plan — Nguyễn Nhật Linh · Đánh giá, chi phí & góc nhìn kinh doanh
+# Plan — Nguyễn Nhật Linh · Đánh giá, ngưỡng & góc nhìn kinh doanh
 
 - **Branch:** `nhatlinh/evaluation-business`
 - **Vùng file phụ trách:**
+  - `src/policy_analysis.py` (mới), `tests/test_policy.py` (mới), `figures/policy/`, `notebooks/04_*`
   - `COST_*` trong `src/config.py` (chỉ sửa sau khi chốt D3)
-  - `notebooks/04_*`, `docs/slides/`
   - `docs/report/04-4-danh-gia-nguong.md`, `05-3-nguong-chi-phi.md`, `07-2-han-che.md`
 - **Mục tiêu:** biến xác suất của mô hình thành **quyết định có ý nghĩa kinh doanh**: đề xuất chi phí
-  và chính sách có căn cứ, diễn giải kết quả cho người không chuyên, trình bày trung thực các giới
-  hạn; làm khung slide cho cả nhóm.
+  và chính sách có căn cứ, tự phân tích ngưỡng/chi phí bằng code, diễn giải kết quả cho người không
+  chuyên và trình bày trung thực các giới hạn.
 
 ## Hiện trạng
 
-- `find_cost_optimal_threshold` hỗ trợ 2 cách tính chi phí:
+- `find_cost_optimal_threshold` (trong `src/optimize_threshold.py`) hỗ trợ 2 cách tính chi phí:
   - `classification`: FP·c_FP + FN·c_FN
   - `action`: (số khách được liên hệ)·c_action + FN·c_FN
 - Ngưỡng được chọn trên validation, đánh giá trên test (`results/policy_metrics.json`,
@@ -19,18 +19,18 @@
 - Chi phí **giả định** FP = $50, FN = $500 → ngưỡng tối ưu trên IBM ≈ 0.06 (recall ≈ 0.98,
   precision ≈ 0.36). Hệ quả: demo gắn nhãn "Churn" cho cả khách hợp đồng 2 năm, xác suất 8.5%.
   **Đây là vấn đề lớn nhất về mặt thuyết phục của demo.**
-- Nam Khánh viết `src/policy_analysis.py`: độ nhạy theo tỉ lệ chi phí và theo seed, top-k, A4,
-  reliability diagram. Kết quả nằm ở `results/policy/` và `figures/policy/`.
 
 ## Đọc trước
 
 - `PLAN.md` (D3, D4), `mustdo.md` (P0 chi phí), `reports/results_snapshot.md` §1–§2
-- `src/optimize_threshold.py`, `src/evaluate.py` (ECE, lift), `src/train.py` bước 7
+- `src/optimize_threshold.py`, `src/evaluate.py` (ECE, lift, các hàm vẽ)
+- `src/train.py` bước 7 (cách RF được calibrate và chọn ngưỡng), `src/compare_datasets.py`
+  (`_split_data`, `_build_model` — dùng lại để chia dữ liệu và dựng mô hình; hỏi Nam Khánh khi cần)
 - `api/predict.py` (cách API đổi xác suất thành nhãn và mức rủi ro High/Medium/Low)
 
 ## Việc cần làm
 
-### Tuần 1 (24–29/11) — đề xuất chi phí và chính sách
+### Tuần 1 (24–29/11) — đề xuất chi phí, bắt đầu phân tích ngưỡng
 
 - [ ] **Đề xuất cho D3** (gửi Hải Anh **trước 27/11**). Bảng giả định chi phí có căn cứ:
   - Chi phí một ưu đãi giữ chân cho mỗi khách được liên hệ.
@@ -45,31 +45,39 @@
   - (c) 3 mức rủi ro theo quantile xác suất.
 
   So sánh ưu/nhược và chọn 1 phương án để API dùng.
-- [ ] Đọc hiểu code đánh giá; chạy `python -m src.train` và xem các hình trong `figures/`.
-- [ ] **Viết nháp mục 4.4 – Độ đo & ngưỡng.** Phần này không phụ thuộc kết quả, nên viết sớm:
+- [ ] **Viết nháp mục 4.4 – Độ đo & ngưỡng** (đọc hiểu code đánh giá trước; chạy `python -m src.train`
+  và xem các hình trong `figures/`). Phần này không phụ thuộc kết quả, nên viết sớm:
   - Định nghĩa và công thức: Accuracy, Precision, Recall, F1, ROC-AUC, PR-AUC, Brier, ECE, lift@k.
   - Vì sao PR-AUC phù hợp hơn ROC-AUC khi dữ liệu mất cân bằng.
   - Công thức chi phí `classification` và `action`.
+- [ ] **`src/policy_analysis.py` — phần 1** (chạy bằng `python -m src.policy_analysis`, ghi
+  `results/policy/*.csv` và `figures/policy/`), trên model RF đã calibrate:
+  - Độ nhạy theo tỉ lệ chi phí FN/FP ∈ {2, 3, 5, 10, 20}: ngưỡng tối ưu chọn trên validation;
+    precision, recall, chi phí, savings trên test.
+  - **A4:** RF @ ngưỡng 0.5 vs @ ngưỡng tối ưu (có sẵn 2 dòng `RF_Calibrated@…` trong snapshot §1 để đối chiếu).
+- [ ] **`src/policy_analysis.py` — phần 2:** chính sách top-k (k = 5%, 10%, 20%, 30%): precision@k,
+  recall@k, lift@k, chi phí; so sánh với chính sách theo ngưỡng ở phần 1.
 
-### Tuần 2 (30/11–06/12) — diễn giải kết quả, khung slide
+### Tuần 2 (30/11–06/12) — hoàn thiện phân tích
 
 - [ ] **Sau khi D3 chốt:** gửi PR nhỏ cập nhật `COST_FP`, `COST_FN`, `COST_ACTION` trong
-  `src/config.py` (trước 04/12), rồi báo Nam Khánh (phân tích ngưỡng và chạy final).
-- [ ] **Notebook `notebooks/04_threshold_business.ipynb`**, dùng kết quả của `src/policy_analysis.py`
-  và model đã lưu:
-  - Chọn bảng/hình chính cho mục 5.3 từ `results/policy/` và `figures/policy/`.
+  `src/config.py` (**trước 04/12**), rồi báo Nam Khánh (chạy final).
+- [ ] **`src/policy_analysis.py` — phần 3:** độ nhạy theo seed (10 seed chia dữ liệu: mean ± std của
+  ngưỡng và savings) và kết quả tại chi phí đã chốt. Viết test trong `tests/test_policy.py`; gửi PR
+  **trước 05/12** để Nam Khánh nối vào `src/reproduce.py` trước tag `v1.0-results`.
+- [ ] **Notebook `notebooks/04_threshold_business.ipynb`:**
   - Confusion matrix tại chính sách đã chọn, diễn giải theo kinh doanh: liên hệ bao nhiêu khách, giữ
     được bao nhiêu khách sắp rời, tốn bao nhiêu, bỏ sót bao nhiêu.
   - **Kiểm tra công bằng theo nhóm khách hàng:** recall/precision theo `SeniorCitizen`, `gender` (IBM)
     hoặc `Age Group` (Iranian), tính từ dự đoán trên tập test.
-- [ ] **Khung slide** (mẫu + bố cục 15–20 slide) gửi cả nhóm **trước 06/12**:
-  bài toán → dữ liệu → phương pháp → kết quả so sánh → RF & giải thích → ngưỡng/kinh doanh → demo →
-  hạn chế → kết luận. Ghi rõ ai làm slide nào (mỗi người 2–3 slide phần của mình).
+- [ ] **Bàn giao chính sách D4 cho Hải Anh** dưới dạng cấu hình cụ thể (ngưỡng quyết định, cách tính
+  3 mức rủi ro) để đưa vào API (**trước 04/12**).
 
 ### Tuần 3 (07–13/12) — viết
 
-- [ ] **Mục 5.3 – Ngưỡng & kinh doanh:** kết quả phân tích ngưỡng, A4, calibration, công bằng; nói rõ
-  savings là **mô phỏng dựa trên giả định**, không phải lợi nhuận thực tế.
+- [ ] **Mục 5.3 – Ngưỡng & kinh doanh:** kết quả phân tích ngưỡng, A4, top-k, công bằng; phần
+  calibration dùng reliability diagram của Nam Khánh. Nói rõ savings là **mô phỏng dựa trên giả định**,
+  không phải lợi nhuận thực tế.
 - [ ] **Mục 7.2 – Hạn chế:**
   - Không có dữ liệu can thiệp nên không biết ưu đãi có thực sự giữ chân được khách hay không.
   - Tương quan không phải nhân quả (kể cả SHAP).
@@ -79,14 +87,10 @@
   - Dữ liệu công khai, cũ, không có timestamp.
 
   Quỳnh Anh gửi phần hạn chế về dữ liệu.
-- [ ] Hoàn thiện mục 4.4. Làm 2–3 slide phần ngưỡng/kinh doanh và hạn chế.
+- [ ] Hoàn thiện mục 4.4. Làm 2–3 slide phần ngưỡng/kinh doanh và hạn chế theo khung của Hải Anh.
 
 ### Tuần 4 (14–20/12)
 
-- [ ] Ghép slide của cả nhóm, cập nhật số theo snapshot tag `v1.0-results`, thống nhất định dạng.
-- [ ] **Đối chiếu số liệu** (trước 18/12): kiểm tra mọi con số trong `docs/report/` và slide khớp
-  `reports/results_snapshot.md` của tag `v1.0-results`; gửi danh sách chỗ lệch cho người viết sửa
-  và báo Hải Anh.
 - [ ] Review chéo mục 4.1, 4.2, 5.2 (Nam Khánh).
 - [ ] Viết câu trả lời phần mình trong `docs/defense_qa.md`. Tham gia 2 buổi tổng duyệt.
 
@@ -94,12 +98,11 @@
 
 - **Cần từ:**
   - Hải Anh: kết quả D1, D3; cách API dùng ngưỡng/mức rủi ro.
-  - Nam Khánh: kết quả `src/policy_analysis.py`.
+  - Nam Khánh: model RF đã calibrate, các hàm chia dữ liệu/dựng mô hình, reliability diagram; review PR code.
   - Quỳnh Anh: các hạn chế về dữ liệu.
 - **Cung cấp cho:**
-  - Hải Anh: đề xuất chi phí D3 (27/11); chính sách D4 (để đưa vào API).
-  - Nam Khánh: `COST_*` (04/12).
-  - Cả nhóm: khung slide (06/12) và bản slide cuối; danh sách chỗ lệch số liệu (18/12).
+  - Hải Anh: đề xuất chi phí D3 (27/11); cấu hình chính sách D4 cho API (04/12).
+  - Nam Khánh: `COST_*` (04/12); `src/policy_analysis.py` (05/12).
 
 ## Câu hỏi bảo vệ cần chuẩn bị
 
@@ -116,6 +119,7 @@
 
 ```bash
 python -m src.train                       # sinh policy_metrics.json, cost_threshold.png
+python -m src.policy_analysis             # phân tích ngưỡng của bạn
 python -m src.reproduce --quick
 jupyter notebook notebooks/
 python -m pytest -q
