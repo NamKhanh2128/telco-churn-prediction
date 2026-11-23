@@ -11,16 +11,19 @@
 
 ## 1. Thành viên, vai trò và branch
 
+**Nguyên tắc:** mỗi thành viên đều tự viết code (module, test hoặc notebook) cho mảng của mình
+và tự trình bày phần đó khi bảo vệ.
+
 Mỗi người làm **chỉ trên branch của mình**, mở Pull Request (PR) vào `main` khi xong từng phần.
 Plan chi tiết của từng người nằm ở file `plans/<tên>.md` **trên branch của người đó**.
 
 | Thành viên | Vai trò | Branch | Plan chi tiết |
 |---|---|---|---|
-| **Lê Hải Anh** (trưởng nhóm) | Điều phối; hệ thống: môi trường, CI, API, giao diện, deploy; ráp báo cáo | `haianh/system-deploy` | `plans/haianh.md` |
-| **Quách Nguyễn Quỳnh Anh** | Dữ liệu, EDA, nguồn gốc dữ liệu, tổng quan tài liệu | `quynhanh/data-eda` | `plans/quynhanh.md` |
-| **Mai Thùy Linh** | Các mô hình so sánh DT/KNN/SVM: siêu tham số, phân tích và trình bày kết quả | `thuylinh/model-comparison` | `plans/thuylinh.md` |
-| **Nguyễn Nhật Linh** | Đánh giá, chi phí và chính sách quyết định, góc nhìn kinh doanh; khung slide | `nhatlinh/evaluation-business` | `plans/nhatlinh.md` |
-| **Nguyễn Đức Nam Khánh** | Random Forest (mô hình chính) và các thí nghiệm AI: benchmark, ablation, độ ổn định, phân tích ngưỡng, giải thích mô hình; tái lập kết quả | `namkhanh/rf-main-model` | `plans/namkhanh.md` |
+| **Lê Hải Anh** (trưởng nhóm) | Điều phối; hệ thống: môi trường, CI, API, giao diện, deploy; ráp báo cáo, slide và câu hỏi bảo vệ | `haianh/system-deploy` | `plans/haianh.md` |
+| **Quách Nguyễn Quỳnh Anh** | Dữ liệu: script tải & kiểm tra dữ liệu, EDA, nguồn gốc dữ liệu; tổng quan tài liệu | `quynhanh/data-eda` | `plans/quynhanh.md` |
+| **Mai Thùy Linh** | Các mô hình so sánh DT/KNN/SVM: cài đặt trong benchmark, siêu tham số, phân tích và trình bày kết quả | `thuylinh/model-comparison` | `plans/thuylinh.md` |
+| **Nguyễn Nhật Linh** | Đánh giá & kinh doanh: code phân tích ngưỡng/chi phí, chính sách quyết định, kiểm tra công bằng | `nhatlinh/evaluation-business` | `plans/nhatlinh.md` |
+| **Nguyễn Đức Nam Khánh** | Random Forest (mô hình chính) và các thí nghiệm AI: khung benchmark, ablation, độ ổn định, calibration, giải thích mô hình; tái lập kết quả | `namkhanh/rf-main-model` | `plans/namkhanh.md` |
 
 Xem plan của mình: `git checkout <branch>` rồi mở `plans/<tên>.md`, hoặc chọn branch trên GitHub.
 
@@ -97,9 +100,11 @@ Hải Anh (D1, D6) ─┬─► Nam Khánh: phân tích RF trên dataset chính
                   ├─► Quỳnh Anh: EDA/data dictionary cho dataset chính
                   ├─► Thùy Linh: bảng so sánh chính trên dataset chính
                   └─► Hải Anh: schema API/giao diện (nếu đổi dataset)
-Nam Khánh (benchmark DT/KNN/SVM × 3 dataset, ~01/12) ─► Thùy Linh: bảng/hình so sánh mô hình
-Nam Khánh (độ ổn định, kiểm định) ─► Thùy Linh: viết mục 5.1
-Nhật Linh (D3) ─► COST_* ─► Nam Khánh: phân tích ngưỡng ─► Nhật Linh: viết mục 5.3
+Quỳnh Anh (src/download_data.py, 29/11) ─► cả nhóm: tự tải đúng phiên bản dữ liệu
+Nam Khánh (khung benchmark, 27/11) ─► Thùy Linh: thêm DT/KNN/SVM vào benchmark (01/12)
+Thùy Linh (DT/KNN/SVM, 01/12) ─► Nam Khánh: độ ổn định 10 seed + kiểm định ─► Thùy Linh: viết mục 5.1
+Nhật Linh (D3 → COST_*, src/policy_analysis.py) ─► Nam Khánh: nối vào src/reproduce.py trước tag
+Nhật Linh (D4) ─► Hải Anh: chính sách quyết định trong API
 Code thí nghiệm merge trước 05/12 ─► Nam Khánh: tag v1.0-results ─┬─► tất cả: số liệu vào báo cáo/slide
                                                                   └─► Hải Anh: deploy model của tag
 ```
@@ -132,15 +137,15 @@ khi merge). Tuần 4, Hải Anh chuyển sang định dạng nộp (D6).
 **Review chéo (tuần 4):** Nam Khánh ↔ Nhật Linh · Quỳnh Anh → chương 1, 6, 7.1 (Hải Anh) ·
 Thùy Linh → chương 2–3 (Quỳnh Anh) · Hải Anh → mục 4.3, 5.1, 5.4 (Thùy Linh).
 
-**Slide:** mỗi người làm 2–3 slide cho phần của mình; Nhật Linh làm khung slide (trước 06/12) và ghép bản cuối.
+**Slide:** mỗi người làm 2–3 slide cho phần của mình; Hải Anh làm khung slide (trước 06/12) và ghép bản cuối.
 
 **Câu hỏi bảo vệ (`docs/defense_qa.md`):** mỗi người viết câu trả lời cho các câu hỏi trong plan
-của mình; Thùy Linh tổng hợp thành một file.
+của mình; Hải Anh tổng hợp thành một file (hạn 17/12).
 
 **Tài liệu tham khảo chung (`docs/report/references.md`):** mọi người gửi tài liệu của phần mình
 cho Thùy Linh để gộp và thống nhất kiểu trích dẫn.
 
-**Đối chiếu số liệu (tuần 4):** Nhật Linh kiểm tra mọi con số trong báo cáo và slide khớp
+**Đối chiếu số liệu (tuần 4):** Nam Khánh kiểm tra mọi con số trong báo cáo và slide khớp
 snapshot tag `v1.0-results`, gửi danh sách chỗ lệch cho người viết sửa.
 
 ---
@@ -149,15 +154,16 @@ snapshot tag `v1.0-results`, gửi danh sách chỗ lệch cho người viết s
 
 | Vùng | Chủ sở hữu | Người khác muốn sửa thì… |
 |---|---|---|
-| `notebooks/01_*`, `figures/eda/`, `data/raw/**/README.md`, `docs/data_dictionary.md` | Quỳnh Anh | nhắn Quỳnh Anh |
-| Toàn bộ code mô hình & thí nghiệm trong `src/` (`train.py`, `compare_datasets.py`, `preprocessing.py`, `data_loader.py`, `explain.py`, `optimize_threshold.py`, `evaluate.py`, `iranian_audit.py`, `ablation.py`, `model_stability.py`, `policy_analysis.py`, `reproduce.py`, `export_results.py`); `DEFAULT_RF_PARAMS`/`RF_PARAM_GRID` trong `src/config.py`; `tests/test_pipeline.py`; `notebooks/02_*`, `figures/rf/`, `figures/policy/` | Nam Khánh | nhắn Nam Khánh |
-| `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`; `notebooks/03_*`, `figures/models/`, `docs/defense_qa.md`, `docs/report/references.md` | Thùy Linh | nhắn Thùy Linh |
-| `COST_*` trong `src/config.py`, `notebooks/04_*`, `docs/slides/` | Nhật Linh | nhắn Nhật Linh |
-| `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `src/download_data.py`, `tests/test_api.py`, `.github/`, `README.md`, `.gitignore` | Hải Anh | nhắn Hải Anh |
+| `src/download_data.py`, `tests/test_download.py`, `notebooks/01_*`, `figures/eda/`, `data/raw/**/README.md`, `docs/data_dictionary.md` | Quỳnh Anh | nhắn Quỳnh Anh |
+| Khung thí nghiệm & mô hình chính trong `src/` (`train.py`, `compare_datasets.py` trừ phần DT/KNN/SVM, `preprocessing.py`, `data_loader.py`, `explain.py`, `optimize_threshold.py`, `evaluate.py`, `iranian_audit.py`, `ablation.py`, `model_stability.py`, `reproduce.py`, `export_results.py`); `DEFAULT_RF_PARAMS`/`RF_PARAM_GRID` trong `src/config.py`; `tests/test_pipeline.py`; `notebooks/02_*`, `figures/rf/` | Nam Khánh | nhắn Nam Khánh |
+| Phần DT/KNN/SVM trong `_build_model` (`src/compare_datasets.py`); `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`; `tests/test_models.py`; `notebooks/03_*`, `figures/models/`, `docs/report/references.md` | Thùy Linh | nhắn Thùy Linh |
+| `src/policy_analysis.py`, `tests/test_policy.py`, `COST_*` trong `src/config.py`, `notebooks/04_*`, `figures/policy/` | Nhật Linh | nhắn Nhật Linh |
+| `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `tests/test_api.py`, `.github/`, `README.md`, `.gitignore`, `docs/slides/`, `docs/defense_qa.md` | Hải Anh | nhắn Hải Anh |
 | `PLAN.md`, `mustdo.md` | Hải Anh | PR nhỏ, Hải Anh duyệt |
 
 Script phân tích mới chỉ cần ghi CSV vào `results/<vùng>/`. Nam Khánh sẽ nối nó vào
 `src/reproduce.py` và thêm section vào `reports/results_snapshot.md` (qua `src/export_results.py`).
+Mỗi người viết test cho code của mình trong file test riêng (`tests/test_<mảng>.py`) để tránh xung đột.
 
 ---
 
@@ -177,7 +183,7 @@ Script phân tích mới chỉ cần ghi CSV vào `results/<vùng>/`. Nam Khánh
    git checkout <branch-của-bạn>     # ví dụ: git checkout quynhanh/data-eda
    ```
 
-3. **Dữ liệu không nằm trong git** (`*.csv` bị ignore). Lấy 3 file (Nam Khánh chia sẻ qua Drive nhóm),
+3. **Dữ liệu không nằm trong git** (`*.csv` bị ignore). Lấy 3 file (Nam Khánh chia sẻ qua Drive nhóm; từ 29/11 có thể chạy `python -m src.download_data`),
    đặt đúng đường dẫn và kiểm tra SHA-256:
 
    | Dataset | Đường dẫn | SHA-256 |
@@ -191,6 +197,8 @@ Script phân tích mới chỉ cần ghi CSV vào `results/<vùng>/`. Nam Khánh
    ```
 
 4. Kiểm tra môi trường: `python -m src.reproduce --quick` (vài phút; phải báo `completed`).
+5. Tham gia buổi hướng dẫn kỹ thuật của Nam Khánh (trước 28/11): cấu trúc code, cách chạy pipeline,
+   cách viết test và mở PR.
 
 ### Hằng ngày
 
@@ -208,8 +216,8 @@ git push
 ### Pull Request vào `main`
 
 - PR nhỏ, một chủ đề (ví dụ: "Add KNN/SVM to 3-dataset benchmark"). Mô tả: làm gì, chạy lệnh gì để kiểm tra.
-- Reviewer: **code mô hình/thí nghiệm (`src/`, `tests/test_pipeline.py`) → Nam Khánh**;
-  **API, giao diện, CI, báo cáo/tài liệu → Hải Anh**. Cần 1 approval mới merge.
+- Reviewer: **code trong `src/` và test của nó → Nam Khánh**; **API, giao diện, CI, báo cáo/tài liệu
+  → Hải Anh**. Cần 1 approval mới merge.
 - `python -m pytest -q` phải pass.
 
 ### Không bao giờ commit
