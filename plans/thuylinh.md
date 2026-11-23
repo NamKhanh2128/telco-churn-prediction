@@ -15,7 +15,7 @@
   SVM_RBF, có tuning khi chạy `--tune`.
 - Nam Khánh đang mở rộng `src/compare_datasets.py` để chạy đủ các mô hình này trên cả 3 dataset
   (dự kiến xong ~01/12, sinh `results/dataset_runs/model_comparison_long.csv`).
-- Hải Anh viết `src/model_stability.py` (10 seed × 6 mô hình, kèm kiểm định thống kê), sinh
+- Nam Khánh cũng viết `src/model_stability.py` (10 seed × 6 mô hình, kèm kiểm định thống kê), sinh
   `results/model_stability/`.
 
 ## Đọc trước
@@ -30,7 +30,7 @@
 
 - [ ] Chạy `python -m src.train` và `python -m src.compare_datasets --dataset all`, đọc
   `results/comparison_table.csv` và `results/test_metrics.json` (có `best_params`).
-- [ ] **Đề xuất D2** (giao thức đánh giá) cho Hải Anh **trước 27/11**: chia 70/15/15, tuning 5-fold
+- [ ] **Đề xuất D2** (giao thức đánh giá), bàn cùng Nam Khánh, gửi Hải Anh **trước 27/11**: chia 70/15/15, tuning 5-fold
   CV theo AP, số seed cho phân tích ổn định, cách xử lý dòng trùng của Iranian.
 - [ ] **Viết nháp mục 4.3 – DT, KNN, SVM.** Phần này không phụ thuộc kết quả, nên viết sớm:
   - DT: tiêu chí chia Gini/entropy, độ sâu, tỉa cây (`ccp_alpha`), vì sao dễ overfit.
@@ -57,7 +57,7 @@
   - Bảng siêu tham số tốt nhất của từng mô hình.
   - Heatmap mô hình × dataset theo F1 và ROC-AUC, từ `model_comparison_long.csv`.
   - Biểu đồ cột 4 độ đo chính cho 6 mô hình, error bar = std qua 10 seed (từ
-    `results/model_stability/` của Hải Anh).
+    `results/model_stability/` của Nam Khánh).
 - [ ] **So sánh với baseline Chen et al. (2025)** trên IBM: tự tìm bài gốc, xác minh tác giả, nơi
   đăng và con số baseline (đang ghi ở `telco_churn_pipeline.md` mục 2.2). Không truy được nguồn thì
   bỏ phần so sánh này. Nếu xác minh được: lập bảng "nhóm vs bài báo" và giải thích chênh lệch:
@@ -71,10 +71,10 @@
   - Đánh đổi Precision/Recall ở ngưỡng 0.5: DT/RF recall cao nhờ `class_weight`, SVM/LogReg precision
     cao hơn.
   - Thời gian huấn luyện.
-  - Kết quả kiểm định thống kê (Hải Anh cung cấp).
+  - Kết quả kiểm định thống kê (Nam Khánh cung cấp).
 - [ ] **Mục 5.4 – So sánh trên 3 dataset:** mô hình nào thắng ở dataset nào và vì sao. Dữ liệu nhiều
   biến phân loại (IBM) thì mô hình tuyến tính đủ tốt; dữ liệu nhiều biến định lượng/phi tuyến
-  (Orange, Iranian) thì cây/ensemble vượt trội. Phối hợp với Hải Anh (mục 5.2).
+  (Orange, Iranian) thì cây/ensemble vượt trội. Phối hợp với Nam Khánh (mục 5.2).
 - [ ] Hoàn thiện mục 4.3.
 - [ ] Làm 2–3 slide phần so sánh mô hình theo khung của Nhật Linh.
 
@@ -83,17 +83,17 @@
 - [ ] **`docs/defense_qa.md`:** gom các câu hỏi bảo vệ trong plan của cả 5 người. Mỗi người tự viết
   câu trả lời cho phần mình (2–4 câu/câu hỏi); bạn gom lại, thống nhất định dạng (**hạn 17/12**).
 - [ ] Review chéo chương 2–3 (Quỳnh Anh).
-- [ ] Sửa các mục của mình theo góp ý của Nam Khánh. Kiểm tra mọi số khớp snapshot tag `v1.0-results`.
+- [ ] Sửa các mục của mình theo góp ý của Hải Anh. Kiểm tra mọi số khớp snapshot tag `v1.0-results`.
 
 ## Phụ thuộc
 
 - **Cần từ:**
-  - Hải Anh: D1 (dataset chính); kết quả độ ổn định và kiểm định thống kê.
-  - Nam Khánh: benchmark đủ mô hình trên 3 dataset (~01/12).
+  - Hải Anh: D1 (dataset chính).
+  - Nam Khánh: benchmark đủ mô hình trên 3 dataset (~01/12); kết quả độ ổn định và kiểm định thống kê.
   - Các bạn: tài liệu tham khảo của phần mình (trước 16/12).
 - **Cung cấp cho:**
-  - Hải Anh: đề xuất D2 (27/11); bảng 3 dataset cho lập luận chọn RF.
-  - Nam Khánh: lưới tham số cuối (04/12).
+  - Hải Anh: đề xuất D2 (27/11).
+  - Nam Khánh: bảng 3 dataset cho lập luận chọn RF; lưới tham số cuối (04/12).
   - Cả nhóm: `docs/defense_qa.md`, `docs/report/references.md`.
 
 ## Câu hỏi bảo vệ cần chuẩn bị
