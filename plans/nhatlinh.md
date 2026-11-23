@@ -84,6 +84,9 @@
 ### Tuần 4 (14–20/12)
 
 - [ ] Ghép slide của cả nhóm, cập nhật số theo snapshot tag `v1.0-results`, thống nhất định dạng.
+- [ ] **Đối chiếu số liệu** (trước 18/12): kiểm tra mọi con số trong `docs/report/` và slide khớp
+  `reports/results_snapshot.md` của tag `v1.0-results`; gửi danh sách chỗ lệch cho người viết sửa
+  và báo Hải Anh.
 - [ ] Review chéo chương 1, 4.2, 5.2, 7.1 (Hải Anh).
 - [ ] Viết câu trả lời phần mình trong `docs/defense_qa.md`. Tham gia 2 buổi tổng duyệt.
 
@@ -96,7 +99,7 @@
 - **Cung cấp cho:**
   - Hải Anh: đề xuất chi phí D3 (27/11).
   - Nam Khánh: chính sách D4 và `COST_*` (04/12).
-  - Cả nhóm: khung slide (06/12) và bản slide cuối.
+  - Cả nhóm: khung slide (06/12) và bản slide cuối; danh sách chỗ lệch số liệu (18/12).
 
 ## Câu hỏi bảo vệ cần chuẩn bị
 
