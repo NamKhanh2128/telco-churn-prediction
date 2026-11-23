@@ -57,6 +57,7 @@ from src.config import (
     TEST_SIZE, VALIDATION_SIZE, RANDOM_STATE, CV_FOLDS,
     MODELS_DIR, RESULTS_DIR, DATASET_PATH,
     DROP_TOTAL_CHARGES, CALIBRATE_PROBABILITIES, CALIBRATION_METHOD,
+    CALIBRATION_ENSEMBLE,
     PRIMARY_SCORING, SEARCH_ITERATIONS, SEARCH_N_JOBS,
     DEFAULT_RF_PARAMS, DEFAULT_DT_PARAMS, DEFAULT_LR_PARAMS,
     DEFAULT_KNN_PARAMS, DEFAULT_SVM_PARAMS, DEFAULT_SVM_RBF_PARAMS,
@@ -341,6 +342,7 @@ def main(drop_total_charges=None):
             estimator=rf_pipeline,
             method=CALIBRATION_METHOD,
             cv=CV_FOLDS,
+            ensemble=CALIBRATION_ENSEMBLE,
             n_jobs=SEARCH_N_JOBS,
         )
         rf_deployed.fit(X_train, y_train)
@@ -478,6 +480,7 @@ def main(drop_total_charges=None):
             'enabled': CALIBRATE_PROBABILITIES,
             'method': CALIBRATION_METHOD if CALIBRATE_PROBABILITIES else None,
             'cv_folds': CV_FOLDS if CALIBRATE_PROBABILITIES else None,
+            'ensemble': CALIBRATION_ENSEMBLE if CALIBRATE_PROBABILITIES else None,
         },
         'split': {
             'train': int(len(X_train)),

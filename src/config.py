@@ -57,6 +57,10 @@ CV_FOLDS = 5
 DROP_TOTAL_CHARGES = True
 CALIBRATE_PROBABILITIES = True
 CALIBRATION_METHOD = 'sigmoid'
+# Deployed RF calibration: False = one forest + one sigmoid calibrator fitted on
+# cross-validated predictions. Same quality as ensemble=True (5 forests) but
+# ~4x smaller on disk — see `python -m src.calibration_analysis`.
+CALIBRATION_ENSEMBLE = False
 PRIMARY_SCORING = 'average_precision'
 SEARCH_ITERATIONS = 30
 SEARCH_N_JOBS = 4

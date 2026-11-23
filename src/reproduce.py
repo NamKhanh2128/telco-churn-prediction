@@ -11,6 +11,10 @@ Steps (in order):
     3. src.compare_datasets --dataset all        — IBM / Orange / Iranian benchmark
     4. src.compare_datasets --dataset ibm --keep-total-charges   — ablation A1
     5. src.iranian_audit                         — duplicate audit + 10-seed stability
+    6. src.ablation                              — A2 (SMOTE/class_weight), A3 (scaling)
+    7. src.model_stability                       — all models × 10 seeds + tests vs RF
+    8. src.calibration_analysis                  — calibration quality vs model size
+    9. src.rf_analysis                           — validation curves, OOB, importance, SHAP
 
 Writes results/reproduce_log.json with the git commit, timestamps and the exact
 commands, then exports reports/results_snapshot.md (src.export_results), so
@@ -42,6 +46,7 @@ def main():
     parser.add_argument('--quick', action='store_true', help='Skip tuning.')
     args = parser.parse_args()
     tune = [] if args.quick else ['--tune']
+    quick = ['--quick'] if args.quick else []
 
     steps = [
         ['-m', 'pytest', '-q'],
@@ -49,6 +54,11 @@ def main():
         ['-m', 'src.compare_datasets', '--dataset', 'all', *tune],
         ['-m', 'src.compare_datasets', '--dataset', 'ibm', '--keep-total-charges', *tune],
         ['-m', 'src.iranian_audit'],
+        # Analyses below reuse the tuned parameters written by compare_datasets.
+        ['-m', 'src.ablation', *quick],
+        ['-m', 'src.model_stability', *quick],
+        ['-m', 'src.calibration_analysis'],
+        ['-m', 'src.rf_analysis', *quick],
     ]
 
     log = {

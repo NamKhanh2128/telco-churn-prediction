@@ -112,6 +112,182 @@ def _stability_table():
     return table[table['metric'].isin(keep)].reset_index(drop=True)
 
 
+def _read_optional(path):
+    return pd.read_csv(path) if path.exists() else None
+
+
+def _mean_std(mean, std):
+    return f'{mean:.4f} ± {std:.4f}'
+
+
+def _all_models_section():
+    table = _read_optional(RUNS_DIR / 'model_comparison_long.csv')
+    if table is None:
+        return []
+    columns = {
+        'dataset': 'Run',
+        'model': 'Model',
+        'accuracy': 'Accuracy',
+        'precision_churn': 'Precision (churn)',
+        'recall_churn': 'Recall (churn)',
+        'f1_churn': 'F1 (churn)',
+        'roc_auc': 'ROC-AUC',
+        'average_precision': 'PR-AUC (AP)',
+    }
+    return [
+        '## 5. All benchmark models × datasets (test set, threshold 0.5)',
+        '',
+        'From `src.compare_datasets` (`results/dataset_runs/model_comparison_long.csv`).',
+        '',
+        _md_table(table[list(columns)].rename(columns=columns)),
+        '',
+    ]
+
+
+def _ablation_section():
+    table = _read_optional(RESULTS_DIR / 'ablation' / 'ablation_summary.csv')
+    if table is None:
+        return []
+    view = pd.DataFrame({
+        'Dataset': table['dataset'],
+        'Exp.': table['experiment'],
+        'Variant': table['variant'],
+        'F1 (churn)': [_mean_std(m, s) for m, s in zip(table['f1_churn_mean'], table['f1_churn_std'])],
+        'Recall (churn)': table['recall_churn_mean'],
+        'Precision (churn)': table['precision_churn_mean'],
+        'PR-AUC (AP)': [
+            _mean_std(m, s)
+            for m, s in zip(table['average_precision_mean'], table['average_precision_std'])
+        ],
+        'Seeds': table['n_seeds'],
+    })
+    return [
+        '## 6. Ablation A2 (imbalance handling) and A3 (scaling) — RF, default parameters',
+        '',
+        'Mean ± std over seeds, test set at threshold 0.5 (`src.ablation`).',
+        '',
+        _md_table(view),
+        '',
+    ]
+
+
+def _stability_models_section():
+    summary = _read_optional(RESULTS_DIR / 'model_stability' / 'stability_summary.csv')
+    if summary is None:
+        return []
+    metrics = {
+        'accuracy': 'Accuracy',
+        'precision_churn': 'Precision',
+        'recall_churn': 'Recall',
+        'f1_churn': 'F1',
+        'roc_auc': 'ROC-AUC',
+        'average_precision': 'AP',
+    }
+    summary = summary[summary['metric'].isin(metrics)].copy()
+    summary['cell'] = [_mean_std(m, s) for m, s in zip(summary['mean'], summary['std'])]
+    wide = summary.pivot_table(
+        index=['dataset', 'model'], columns='metric', values='cell', aggfunc='first', sort=False,
+    ).reset_index()
+    wide = wide[['dataset', 'model', *metrics]].rename(
+        columns={'dataset': 'Dataset', 'model': 'Model', **metrics},
+    )
+    parts = [
+        '## 7. Stability over 10 seeds — all models (test set, threshold 0.5)',
+        '',
+        'Mean ± std over repeated 70/15/15 splits with fixed tuned parameters '
+        '(`src.model_stability`).',
+        '',
+        _md_table(wide),
+        '',
+    ]
+    tests = _read_optional(RESULTS_DIR / 'model_stability' / 'stat_tests.csv')
+    if tests is not None and not tests.empty:
+        view = pd.DataFrame({
+            'Dataset': tests['dataset'],
+            'Test': tests['test'],
+            'RF': tests['rf_mean'],
+            'Rival': tests['rival'],
+            'Rival score': tests['rival_mean'],
+            'Statistic': tests['statistic'].astype(str),
+            'p-value': tests['p_value'].map(lambda p: f'{p:.3g}'),
+            'n': tests['n_pairs'],
+        })
+        parts += [
+            'RandomForest vs the strongest other model (two-sided, not corrected for '
+            'multiple comparisons; Wilcoxon over seeds, McNemar on the seed-42 test set):',
+            '',
+            _md_table(view.astype(object).where(view.notna(), None)),
+            '',
+        ]
+    return parts
+
+
+def _calibration_section():
+    table = _read_optional(RESULTS_DIR / 'calibration' / 'calibration_comparison.csv')
+    if table is None:
+        return []
+    table = table.copy()
+    if 'deployed' in table:
+        table['deployed'] = table['deployed'].map(lambda value: 'yes' if bool(value) else '')
+    else:
+        table['deployed'] = ''
+    for column in ['size_mb', 'size_mb_compressed']:
+        table[column] = table[column].map(lambda value: f'{value:.1f}')
+    columns = {
+        'dataset': 'Dataset',
+        'model': 'Model',
+        'deployed': 'Deployed',
+        'roc_auc': 'ROC-AUC',
+        'average_precision': 'AP',
+        'brier_score': 'Brier',
+        'ece': 'ECE',
+        'size_mb': 'Size MB',
+        'size_mb_compressed': 'Size MB (compressed)',
+    }
+    return [
+        '## 8. Calibration of the deployed RF — quality vs size (test set)',
+        '',
+        'From `src.calibration_analysis`; reliability diagrams in `figures/rf/`.',
+        '',
+        _md_table(table[list(columns)].rename(columns=columns)),
+        '',
+    ]
+
+
+def _rf_analysis_section():
+    table = _read_optional(RESULTS_DIR / 'rf_analysis' / 'rf_summary.csv')
+    if table is None:
+        return []
+    scores = pd.DataFrame({
+        'Dataset': table['dataset'],
+        'n_estimators': table['n_estimators'].astype(str),
+        'max_depth': table['max_depth'].astype(str),
+        'OOB AP': table['oob_ap'],
+        'CV AP': [_mean_std(m, s) for m, s in zip(table['cv_ap_mean'], table['cv_ap_std'])],
+        'Test AP': table['test_ap'],
+        'ρ(MDI, perm.)': table['spearman_mdi_permutation'],
+        'ρ(MDI, SHAP)': table['spearman_mdi_shap'],
+        'ρ(perm., SHAP)': table['spearman_permutation_shap'],
+    })
+    tops = pd.DataFrame({
+        'Dataset': table['dataset'],
+        'Top-5 MDI': table['top5_mdi'],
+        'Top-5 permutation': table['top5_permutation'],
+        'Top-5 SHAP': table['top5_shap'],
+    })
+    return [
+        '## 9. Random Forest analysis — OOB vs CV vs test, importance agreement',
+        '',
+        'From `src.rf_analysis` (tuned RF; ρ = Spearman rank correlation between '
+        'importance methods). Figures in `figures/rf/`.',
+        '',
+        _md_table(scores),
+        '',
+        _md_table(tops),
+        '',
+    ]
+
+
 def main(out_path=None):
     log_path = RESULTS_DIR / 'reproduce_log.json'
     log = _load_json(log_path) if log_path.exists() else {}
@@ -162,6 +338,12 @@ def main(out_path=None):
             _md_table(stability),
             '',
         ]
+
+    parts += _all_models_section()
+    parts += _ablation_section()
+    parts += _stability_models_section()
+    parts += _calibration_section()
+    parts += _rf_analysis_section()
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text('\n'.join(parts), encoding='utf-8')

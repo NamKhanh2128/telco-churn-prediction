@@ -119,6 +119,89 @@ def aggregate_shap_to_original_features(shap_values, encoded_feature_names, orig
     return pd.DataFrame(aggregated)
 
 
+def input_features(pipeline):
+    """Columns the pipeline's preprocessor consumes (raw + engineered features)."""
+    preprocessor = pipeline.named_steps["preprocessor"]
+    features = []
+    for name, _, columns in preprocessor.transformers_:
+        if name == "remainder" or isinstance(columns, str):
+            continue
+        features.extend(list(columns))
+    return features
+
+
+def aggregate_signed_shap(shap_values, encoded_feature_names, features):
+    """Sum SIGNED SHAP values of encoded columns back to each input feature.
+
+    Unlike aggregate_shap_to_original_features (absolute values, for global
+    importance), the sign is kept: positive pushes towards churn, negative
+    away from it. Used for per-customer explanations.
+    """
+    aggregated = {}
+    for feature in features:
+        indices = []
+        for index, encoded_name in enumerate(encoded_feature_names):
+            clean_name = encoded_name
+            for prefix in ["num__", "cat__"]:
+                if clean_name.startswith(prefix):
+                    clean_name = clean_name[len(prefix):]
+            if clean_name == feature or clean_name.startswith(f"{feature}_"):
+                indices.append(index)
+        if indices:
+            aggregated[feature] = np.asarray(shap_values)[:, indices].sum(axis=1)
+    return pd.DataFrame(aggregated)
+
+
+def _base_pipelines(model):
+    """Fitted pipelines inside a model (one per CalibratedClassifierCV fold)."""
+    calibrated = getattr(model, "calibrated_classifiers_", None)
+    if calibrated:
+        return [calibrated_clf.estimator for calibrated_clf in calibrated]
+    return [model]
+
+
+def explain_customer(model, customer_df, top_n=5):
+    """Per-customer SHAP explanation for the API and the report.
+
+    Works with a plain tree pipeline or with the deployed
+    CalibratedClassifierCV(pipeline): SHAP values are computed on every
+    calibrated fold's forest and averaged.
+
+    Returns a list (largest |contribution| first) of
+    {"feature", "value", "contribution", "direction", "impact"} where
+    direction is "increases_churn" / "decreases_churn" and impact is
+    "high" / "medium" / "low" relative to the strongest factor.
+    """
+    pipelines = _base_pipelines(model)
+    total = None
+    view = customer_df
+    for pipeline in pipelines:
+        shap_values, _, encoded_names = compute_shap_values(pipeline, customer_df)
+        signed = aggregate_signed_shap(
+            shap_values, encoded_names, input_features(pipeline),
+        ).iloc[0]
+        total = signed if total is None else total.add(signed, fill_value=0.0)
+        if "feature_engineer" in pipeline.named_steps:
+            view = pipeline.named_steps["feature_engineer"].transform(customer_df)
+    if total is None or total.empty:
+        return []
+    total = total / len(pipelines)
+    ordered = total.reindex(total.abs().sort_values(ascending=False).index)
+    strongest = float(ordered.abs().iloc[0]) or 1.0
+
+    factors = []
+    for feature, contribution in ordered.head(top_n).items():
+        ratio = abs(float(contribution)) / strongest
+        factors.append({
+            "feature": feature,
+            "value": str(view[feature].iloc[0]) if feature in view.columns else "N/A",
+            "contribution": round(float(contribution), 4),
+            "direction": "increases_churn" if contribution > 0 else "decreases_churn",
+            "impact": "high" if ratio > 0.6 else "medium" if ratio > 0.3 else "low",
+        })
+    return factors
+
+
 def get_top_factors_for_customer(pipeline, customer_df, original_columns, top_n=5):
     """
     Get top factors driving churn prediction for a single customer.
