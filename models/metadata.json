@@ -24,7 +24,13 @@
   "numeric_features": [
     "tenure",
     "MonthlyCharges",
-    "SeniorCitizen"
+    "SeniorCitizen",
+    "charges_per_tenure",
+    "total_additional_services",
+    "streaming_services",
+    "security_support_services",
+    "is_high_risk_contract",
+    "has_bundle"
   ],
   "categorical_features": [
     "gender",
@@ -43,25 +49,26 @@
     "PaperlessBilling",
     "PaymentMethod"
   ],
+  "feature_engineering": true,
   "global_feature_importance": {
-    "gender": 0.0312624,
-    "SeniorCitizen": 0.02060689,
-    "Partner": 0.0262654,
-    "Dependents": 0.02361117,
-    "tenure": 0.21683305,
-    "PhoneService": 0.00517757,
-    "MultipleLines": 0.02646883,
-    "InternetService": 0.05560637,
-    "OnlineSecurity": 0.03919191,
-    "OnlineBackup": 0.0315391,
-    "DeviceProtection": 0.02898574,
-    "TechSupport": 0.03640231,
-    "StreamingTV": 0.02509006,
-    "StreamingMovies": 0.02762394,
-    "Contract": 0.10602684,
-    "PaperlessBilling": 0.02754842,
-    "PaymentMethod": 0.07130546,
-    "MonthlyCharges": 0.20045453
+    "gender": 0.01019999,
+    "SeniorCitizen": 0.00639409,
+    "Partner": 0.01081216,
+    "Dependents": 0.01042654,
+    "tenure": 0.13652313,
+    "PhoneService": 0.00289437,
+    "MultipleLines": 0.01149262,
+    "InternetService": 0.07036685,
+    "OnlineSecurity": 0.03037462,
+    "OnlineBackup": 0.02412361,
+    "DeviceProtection": 0.02090747,
+    "TechSupport": 0.03227969,
+    "StreamingTV": 0.02038791,
+    "StreamingMovies": 0.0193303,
+    "Contract": 0.11421829,
+    "PaperlessBilling": 0.01625209,
+    "PaymentMethod": 0.05122307,
+    "MonthlyCharges": 0.07430194
   },
   "total_charges_policy": "drop",
   "calibration": {
@@ -70,9 +77,9 @@
     "cv_folds": 5
   },
   "split": {
-    "train": 4577,
+    "train": 4929,
     "validation": 1057,
-    "test": 1409,
+    "test": 1057,
     "random_state": 42
   },
   "threshold": {
@@ -80,10 +87,10 @@
     "cost_action": 50,
     "threshold_source": "validation",
     "model": "random_forest",
-    "threshold": 0.1163,
+    "threshold": 0.0633,
     "cost_fp": 50,
     "cost_fn": 500,
-    "savings_vs_default": 56700.0
+    "savings_vs_default": 41900.0
   },
   "dataset_sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91",
   "python_version": "3.13.11",

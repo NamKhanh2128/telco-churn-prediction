@@ -214,3 +214,104 @@ def test_ibm_and_iranian_profiles_are_independent():
     assert 'TotalCharges' not in ibm_X.columns
     assert 'TotalCharges' not in iranian_X.columns
     assert set(ibm_X.columns) != set(iranian_X.columns)
+
+
+def test_telco_feature_engineer_creates_expected_columns():
+    from src.preprocessing import TelcoFeatureEngineer
+    sample = pd.DataFrame([{
+        'tenure': 4,
+        'MonthlyCharges': 50.0,
+        'OnlineSecurity': 'Yes',
+        'OnlineBackup': 'No',
+        'DeviceProtection': 'Yes',
+        'TechSupport': 'No',
+        'StreamingTV': 'Yes',
+        'StreamingMovies': 'Yes',
+        'Contract': 'Month-to-month',
+        'PaymentMethod': 'Electronic check',
+        'InternetService': 'Fiber optic',
+        'PhoneService': 'Yes',
+    }])
+    fe = TelcoFeatureEngineer(enabled=True)
+    transformed = fe.transform(sample)
+
+    assert 'charges_per_tenure' in transformed.columns
+    # MonthlyCharges / (tenure + 1) = 50.0 / (4 + 1) = 10.0
+    assert transformed['charges_per_tenure'].iloc[0] == 10.0
+    # 4 services: OnlineSecurity, DeviceProtection, StreamingTV, StreamingMovies
+    assert transformed['total_additional_services'].iloc[0] == 4
+    assert transformed['streaming_services'].iloc[0] == 2
+    assert transformed['security_support_services'].iloc[0] == 1
+    assert transformed['is_high_risk_contract'].iloc[0] == 1
+    assert transformed['has_bundle'].iloc[0] == 1
+
+
+def test_orange_dataset_profile_loads_correctly():
+    X, y, profile, audit = load_dataset('orange')
+    assert profile['label'] == 'Orange Telecom'
+    assert X.shape == (3333, 19)
+    assert set(y.unique()).issubset({0, 1})
+    assert audit['missing_values'] == 0
+    assert audit['rows'] == 3333
+    assert 0.14 <= audit['churn_rate'] <= 0.15
+
+
+def test_calibrated_svm_produces_valid_probabilities_and_metrics():
+    from sklearn.svm import LinearSVC
+    from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.datasets import make_classification
+
+    X, y = make_classification(n_samples=100, n_features=6, random_state=42)
+    clf = CalibratedClassifierCV(LinearSVC(random_state=42), method='sigmoid', cv=3)
+    clf.fit(X, y)
+    proba = clf.predict_proba(X)[:, 1]
+
+    assert np.all((proba >= 0.0) & (proba <= 1.0))
+    metrics = compute_metrics(y, clf.predict(X), proba)
+    assert metrics['brier_score'] is not None
+    assert metrics['ece'] is not None
+    assert 0.0 <= metrics['brier_score'] <= 1.0
+    assert 0.0 <= metrics['ece'] <= 1.0
+
+
+def test_iranian_group_aware_split_has_zero_leakage():
+    from src.compare_datasets import _split_data
+    X, y, _, _ = load_dataset('iranian')
+    X_train, X_val, X_test, y_train, y_val, y_test = _split_data(
+        X, y, dataset_name='iranian', split_method='group_aware'
+    )
+    assert len(X_train) + len(X_val) + len(X_test) == len(X)
+    train_groups = set(pd.util.hash_pandas_object(X_train, index=False))
+    test_groups = set(pd.util.hash_pandas_object(X_test, index=False))
+    # Crucial test: No duplicate feature vector crosses between train and test!
+    overlap = train_groups & test_groups
+    assert len(overlap) == 0, f"Found {len(overlap)} overlapping feature groups!"
+
+
+
+@pytest.mark.parametrize('dataset_name', ['ibm', 'orange', 'iranian'])
+def test_split_is_70_15_15(dataset_name):
+    from src.compare_datasets import _split_data
+    X, y, _, _ = load_dataset(dataset_name)
+    X_train, X_val, X_test, *_ = _split_data(X, y, dataset_name=dataset_name)
+    n = len(X)
+    assert len(X_train) + len(X_val) + len(X_test) == n
+    # Group-aware (Iranian) folds cannot hit the target exactly; allow 2 pp.
+    assert abs(len(X_train) / n - 0.70) <= 0.02
+    assert abs(len(X_val) / n - 0.15) <= 0.02
+    assert abs(len(X_test) / n - 0.15) <= 0.02
+
+
+def test_calibrated_rbf_svm_produces_valid_probabilities():
+    from sklearn.svm import SVC
+    from sklearn.calibration import CalibratedClassifierCV
+    from sklearn.datasets import make_classification
+    from src.config import DEFAULT_SVM_RBF_PARAMS
+
+    X, y = make_classification(n_samples=120, n_features=6, random_state=42)
+    clf = CalibratedClassifierCV(SVC(**DEFAULT_SVM_RBF_PARAMS), method='sigmoid', cv=3)
+    clf.fit(X, y)
+    proba = clf.predict_proba(X)[:, 1]
+    assert np.all((proba >= 0.0) & (proba <= 1.0))
+    metrics = compute_metrics(y, clf.predict(X), proba)
+    assert metrics['roc_auc'] > 0.5

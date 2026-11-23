@@ -1,9 +1,9 @@
-'''Run the two approved churn datasets independently and compare them.
+'''Run the approved churn datasets independently and compare them.
 
-This module deliberately keeps IBM Telco and Iranian Churn in separate
-artifacts. It uses the same train/validation/test protocol and the same
-Random Forest deployment policy for both datasets, so the comparison is
-about dataset behaviour rather than concatenated data.
+This module deliberately keeps IBM Telco, Orange Telecom, and Iranian Churn in
+separate artifacts. It uses the same train/validation/test protocol and the
+same Random Forest deployment policy for all datasets, so the comparison is
+about dataset behaviour across real-world paradigms rather than concatenated data.
 '''
 
 import argparse
@@ -27,6 +27,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import (
     ParameterGrid,
     RandomizedSearchCV,
+    StratifiedGroupKFold,
     StratifiedKFold,
     train_test_split,
 )
@@ -38,6 +39,7 @@ from src.config import (
     COST_FN,
     COST_FP,
     DATA_RAW_DIR,
+    ENGINEERED_NUMERIC_FEATURES,
     FIGURES_DIR,
     MODELS_DIR,
     PRIMARY_SCORING,
@@ -46,6 +48,7 @@ from src.config import (
     SEARCH_ITERATIONS,
     SEARCH_N_JOBS,
     TEST_SIZE,
+    USE_FEATURE_ENGINEERING,
     VALIDATION_SIZE,
     DEFAULT_LR_PARAMS,
     DEFAULT_RF_PARAMS,
@@ -54,7 +57,11 @@ from src.config import (
 from src.data_loader import get_file_sha256
 from src.evaluate import compute_metrics
 from src.optimize_threshold import find_cost_optimal_threshold
-from src.preprocessing import build_model_pipeline, build_preprocessor
+from src.preprocessing import (
+    build_model_pipeline,
+    build_preprocessor,
+    TelcoFeatureEngineer,
+)
 
 
 if hasattr(sys.stdout, 'reconfigure'):
@@ -65,6 +72,11 @@ DATASET_PROFILES = {
     'ibm': {
         'label': 'IBM Telco',
         'path': DATA_RAW_DIR / 'WA_Fn-UseC_-Telco-Customer-Churn.csv',
+        'target': 'Churn',
+    },
+    'orange': {
+        'label': 'Orange Telecom',
+        'path': DATA_RAW_DIR / 'orange-telecom' / 'telecom_churn.csv',
         'target': 'Churn',
     },
     'iranian': {
@@ -81,7 +93,7 @@ def _write_json(path, payload):
         json.dump(payload, file_handle, indent=2, default=str)
 
 
-def _normalise_iranian_columns(df):
+def _normalise_columns(df):
     result = df.copy()
     result.columns = (
         result.columns.astype(str)
@@ -102,8 +114,7 @@ def load_dataset(dataset_name, keep_total_charges=False):
         )
 
     raw = pd.read_csv(path)
-    if dataset_name == 'iranian':
-        raw = _normalise_iranian_columns(raw)
+    raw = _normalise_columns(raw)
 
     target = profile['target']
     if target not in raw.columns:
@@ -122,7 +133,29 @@ def load_dataset(dataset_name, keep_total_charges=False):
         raw = raw.drop(columns=['customerID'])
         if not keep_total_charges:
             raw = raw.drop(columns=['TotalCharges'])
+
+    elif dataset_name == 'orange':
+        raw[target] = (
+            raw[target]
+            .astype(str)
+            .str.strip()
+            .map({
+                'True': 1, 'False': 0,
+                '1': 1, '0': 0,
+                'Yes': 1, 'No': 0,
+                'True.': 1, 'False.': 0,
+            })
+        )
+        cat_columns = ['State', 'Area code', 'International plan', 'Voice mail plan']
+        for col in cat_columns:
+            if col in raw.columns:
+                raw[col] = raw[col].astype(str).str.strip()
+        num_columns = [col for col in raw.columns if col not in cat_columns and col != target]
+        for col in num_columns:
+            raw[col] = pd.to_numeric(raw[col], errors='coerce')
+
     else:
+        # Iranian
         raw[target] = pd.to_numeric(raw[target], errors='coerce')
         feature_columns = [column for column in raw.columns if column != target]
         for column in feature_columns:
@@ -153,12 +186,20 @@ def _scores(estimator, X):
     return None
 
 
-def _build_model(name, numeric_features, categorical_features):
+def _build_model(name, numeric_features, categorical_features, is_ibm=False):
     if name == 'RandomForest':
         classifier = RandomForestClassifier(**DEFAULT_RF_PARAMS)
         scale_numeric = False
     elif name == 'LogReg':
-        classifier = LogisticRegression(**DEFAULT_LR_PARAMS)
+        base_lr = LogisticRegression(**DEFAULT_LR_PARAMS)
+        if CALIBRATE_PROBABILITIES:
+            classifier = CalibratedClassifierCV(
+                base_lr,
+                method=CALIBRATION_METHOD,
+                cv=CV_FOLDS,
+            )
+        else:
+            classifier = base_lr
         scale_numeric = True
     else:
         classifier = DummyClassifier(strategy='most_frequent')
@@ -169,7 +210,12 @@ def _build_model(name, numeric_features, categorical_features):
         categorical_features,
         scale_numeric=scale_numeric,
     )
-    return build_model_pipeline(preprocessor, classifier)
+    feature_engineer = TelcoFeatureEngineer(enabled=True) if is_ibm else None
+    return build_model_pipeline(
+        preprocessor,
+        classifier,
+        feature_engineer=feature_engineer,
+    )
 
 
 def _fit_model(name, pipeline, X_train, y_train, tune=False):
@@ -208,7 +254,67 @@ def _fit_model(name, pipeline, X_train, y_train, tune=False):
     return fitted, best_params, time.time() - start
 
 
-def _split_data(X, y):
+def _choose_group_fold(X, y, groups, n_splits, target_fraction, seed):
+    '''Choose the stratified-group fold closest to target size and prevalence.'''
+    splitter = StratifiedGroupKFold(
+        n_splits=n_splits,
+        shuffle=True,
+        random_state=seed,
+    )
+    dummy = np.zeros((len(y), 1))
+    overall_rate = float(np.mean(y))
+    candidates = []
+    for train_idx, heldout_idx in splitter.split(dummy, y, groups):
+        heldout_rate = float(np.mean(y.iloc[heldout_idx]))
+        fraction_error = abs(len(heldout_idx) / len(y) - target_fraction)
+        rate_error = abs(heldout_rate - overall_rate)
+        candidates.append(
+            (fraction_error + 0.25 * rate_error, train_idx, heldout_idx)
+        )
+    _, train_idx, heldout_idx = min(candidates, key=lambda item: item[0])
+    return np.asarray(train_idx), np.asarray(heldout_idx)
+
+
+def _group_split_indices(X, y, groups, seed=RANDOM_STATE):
+    '''Create an approximately 70/15/15 split without duplicate groups crossing.'''
+    train_dev, test = _choose_group_fold(
+        X,
+        y,
+        groups,
+        n_splits=max(2, round(1 / TEST_SIZE)),
+        target_fraction=TEST_SIZE,
+        seed=seed,
+    )
+    train_dev_groups = groups[train_dev]
+    train_dev_y = y.iloc[train_dev].reset_index(drop=True)
+    train_rel, validation_rel = _choose_group_fold(
+        X.iloc[train_dev].reset_index(drop=True),
+        train_dev_y,
+        train_dev_groups,
+        n_splits=max(2, round((1 - TEST_SIZE) / VALIDATION_SIZE)),
+        target_fraction=VALIDATION_SIZE / (1 - TEST_SIZE),
+        seed=seed + 1000,
+    )
+    train = train_dev[train_rel]
+    validation = train_dev[validation_rel]
+    return np.asarray(train), np.asarray(validation), np.asarray(test)
+
+
+def _split_data(X, y, dataset_name='ibm', split_method='default'):
+    '''Split dataset into 70/15/15 train/val/test splits.'''
+    if dataset_name == 'iranian' and split_method != 'row_wise':
+        # Group-aware split to prevent identical feature vectors crossing boundaries
+        groups = pd.util.hash_pandas_object(X, index=False).astype(str).to_numpy()
+        train_idx, val_idx, test_idx = _group_split_indices(X, y, groups, seed=RANDOM_STATE)
+        return (
+            X.iloc[train_idx].reset_index(drop=True),
+            X.iloc[val_idx].reset_index(drop=True),
+            X.iloc[test_idx].reset_index(drop=True),
+            y.iloc[train_idx].reset_index(drop=True),
+            y.iloc[val_idx].reset_index(drop=True),
+            y.iloc[test_idx].reset_index(drop=True),
+        )
+
     X_train_dev, X_test, y_train_dev, y_test = train_test_split(
         X,
         y,
@@ -227,7 +333,7 @@ def _split_data(X, y):
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 
-def run_dataset(dataset_name, tune=False, keep_total_charges=False):
+def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method='default'):
     '''Train one dataset and write artifacts under a dataset-specific folder.'''
     run_name = dataset_name
     if dataset_name == 'ibm' and keep_total_charges:
@@ -237,15 +343,31 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False):
         dataset_name,
         keep_total_charges=keep_total_charges,
     )
+
     numeric_features = list(X.select_dtypes(include=np.number).columns)
     categorical_features = [
         column for column in X.columns if column not in numeric_features
     ]
-    X_train, X_val, X_test, y_train, y_val, y_test = _split_data(X, y)
+
+    is_ibm = (dataset_name == 'ibm')
+    if is_ibm and USE_FEATURE_ENGINEERING:
+        for feat in ENGINEERED_NUMERIC_FEATURES:
+            if feat not in numeric_features:
+                numeric_features.append(feat)
+
+    X_train, X_val, X_test, y_train, y_val, y_test = _split_data(
+        X, y, dataset_name=dataset_name, split_method=split_method,
+    )
+
+    actual_split = (
+        'group_aware'
+        if (dataset_name == 'iranian' and split_method != 'row_wise')
+        else 'stratified_row_wise'
+    )
 
     dataset_label = profile['label']
     print(f'\n=== {dataset_label} ({run_name}) ===')
-    print(f'rows={len(X):,}, features={X.shape[1]}, churn={y.mean():.2%}')
+    print(f'rows={len(X):,}, features={X.shape[1]}, churn={y.mean():.2%}, split={actual_split}')
     print(f'train={len(X_train):,}, validation={len(X_val):,}, test={len(X_test):,}')
 
     model_results = {}
@@ -255,6 +377,7 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False):
             model_name,
             numeric_features,
             categorical_features,
+            is_ibm=is_ibm,
         )
         fitted, best_params, train_time = _fit_model(
             model_name,
@@ -319,6 +442,8 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False):
         'feature_columns': list(X.columns),
         'numeric_features': numeric_features,
         'categorical_features': categorical_features,
+        'split_method': actual_split,
+        'feature_engineering': is_ibm and USE_FEATURE_ENGINEERING,
         'total_charges_policy': (
             'keep_ablation' if keep_total_charges else 'drop'
         ) if dataset_name == 'ibm' else 'not_applicable',
@@ -382,6 +507,7 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False):
         'status': 'completed',
         'dataset': run_name,
         'tuned': tune,
+        'split_method': actual_split,
         'search_iterations': SEARCH_ITERATIONS if tune else 0,
         'model_path': str(model_path),
     })
@@ -403,7 +529,7 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False):
 
 
 def save_dataset_comparison_plot(table):
-    '''Save a compact two-dataset metric comparison with value labels.'''
+    '''Save a compact multi-dataset metric comparison with exact value labels.'''
     if table.empty:
         return None
 
@@ -416,7 +542,7 @@ def save_dataset_comparison_plot(table):
         ('rf_lift_at_10pct', 'Lift @ top 10%', 'higher is better'),
     ]
     labels = table['dataset_label'].astype(str).tolist()
-    colors = ['#4C78A8', '#F58518', '#54A24B', '#E45756']
+    colors = ['#4C78A8', '#F58518', '#54A24B', '#E45756', '#B07AA1']
     fig, axes = plt.subplots(2, 3, figsize=(15, 8.5))
 
     footer_lines = []
@@ -458,7 +584,7 @@ def save_dataset_comparison_plot(table):
         )
         ax.set_ylabel('Score')
         ax.set_xticks(range(len(labels)))
-        ax.set_xticklabels(labels, rotation=18, ha='right', fontsize=9)
+        ax.set_xticklabels(labels, rotation=15, ha='right', fontsize=9)
         upper_bound = max(float(np.nanmax(plot_values)) * 1.28, 0.05)
         ax.set_ylim(0, upper_bound)
         ax.grid(axis='y', alpha=0.25)
@@ -472,7 +598,7 @@ def save_dataset_comparison_plot(table):
         footer_lines.append(line)
 
     fig.suptitle(
-        'Dataset Comparison — Random Forest Evaluation',
+        'Multi-Dataset Benchmark — Random Forest Evaluation Across Paradigms',
         fontsize=15,
         fontweight='bold',
         y=0.99,
@@ -481,8 +607,8 @@ def save_dataset_comparison_plot(table):
         0.5,
         0.018,
         '\n'.join(footer_lines)
-        + '\nBar labels are exact values from the held-out test split. '
-        + 'Threshold-dependent Policy F1 uses the validation-selected business threshold.',
+        + '\nBar labels are exact test metrics. Iranian uses leak-free group-aware split.'
+        + '\nThreshold-dependent Policy F1 uses validation-selected business threshold (Cost FP=$50, FN=$500).',
         ha='center',
         va='bottom',
         fontsize=8.5,
@@ -526,13 +652,19 @@ def update_comparison_table(rows):
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Run IBM and Iranian churn datasets independently.'
+        description='Run IBM, Orange, and Iranian churn datasets independently.'
     )
     parser.add_argument(
         '--dataset',
-        choices=['ibm', 'iranian', 'both'],
-        default='both',
-        help='Dataset to run; both runs them sequentially.',
+        choices=['ibm', 'orange', 'iranian', 'both', 'all'],
+        default='all',
+        help='Dataset to run: "all" runs all three; "both" runs IBM and Iranian.',
+    )
+    parser.add_argument(
+        '--split-method',
+        choices=['default', 'group_aware', 'row_wise'],
+        default='default',
+        help='Split method for Iranian: group_aware (default) or row_wise.',
     )
     parser.add_argument(
         '--tune',
@@ -546,11 +678,13 @@ def main():
     )
     args = parser.parse_args()
 
-    dataset_names = (
-        list(DATASET_PROFILES)
-        if args.dataset == 'both'
-        else [args.dataset]
-    )
+    if args.dataset == 'all':
+        dataset_names = ['ibm', 'orange', 'iranian']
+    elif args.dataset == 'both':
+        dataset_names = ['ibm', 'iranian']
+    else:
+        dataset_names = [args.dataset]
+
     rows = []
     for dataset_name in dataset_names:
         rows.append(
@@ -560,6 +694,7 @@ def main():
                 keep_total_charges=(
                     args.keep_total_charges and dataset_name == 'ibm'
                 ),
+                split_method=args.split_method,
             )
         )
 

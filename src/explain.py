@@ -44,7 +44,9 @@ def compute_shap_values(pipeline, X_test, feature_names=None):
     preprocessor = pipeline.named_steps["preprocessor"]
     classifier = pipeline.named_steps["classifier"]
 
-    # Transform test data
+    # Transform test data (passing through feature_engineer if present)
+    if "feature_engineer" in pipeline.named_steps:
+        X_test = pipeline.named_steps["feature_engineer"].transform(X_test)
     X_test_transformed = preprocessor.transform(X_test)
 
     # Get feature names
@@ -61,9 +63,11 @@ def compute_shap_values(pipeline, X_test, feature_names=None):
     # For binary classification, take values for class 1 (Churn)
     if isinstance(shap_values, list):
         shap_values = shap_values[1]
+    elif isinstance(shap_values, np.ndarray) and shap_values.ndim == 3:
+        shap_values = shap_values[:, :, 1]
 
     expected_value = explainer.expected_value
-    if isinstance(expected_value, (list, np.ndarray)):
+    if isinstance(expected_value, (list, np.ndarray)) and len(expected_value) > 1:
         expected_value = expected_value[1]
 
     return shap_values, expected_value, feature_names
@@ -177,10 +181,15 @@ def plot_shap_summary(pipeline, X_test, feature_names=None, save=True):
     """
     shap_values, _, feature_names = compute_shap_values(pipeline, X_test, feature_names)
 
+    X_test_proc = X_test
+    if "feature_engineer" in pipeline.named_steps:
+        X_test_proc = pipeline.named_steps["feature_engineer"].transform(X_test_proc)
+    X_test_transformed = pipeline.named_steps["preprocessor"].transform(X_test_proc)
+
     plt.figure(figsize=(10, 8))
     shap.summary_plot(
         shap_values,
-        pipeline.named_steps["preprocessor"].transform(X_test),
+        X_test_transformed,
         feature_names=feature_names,
         show=False,
         max_display=15,
@@ -192,7 +201,7 @@ def plot_shap_summary(pipeline, X_test, feature_names=None, save=True):
         FIGURES_DIR.mkdir(parents=True, exist_ok=True)
         plt.savefig(FIGURES_DIR / "shap_summary.png", dpi=150, bbox_inches="tight")
         print(f"[explain] Saved shap_summary.png")
-    plt.show()
+    plt.close()
 
 
 def plot_aggregated_importance(pipeline, X_test, original_columns, save=True):
@@ -218,4 +227,4 @@ def plot_aggregated_importance(pipeline, X_test, original_columns, save=True):
         FIGURES_DIR.mkdir(parents=True, exist_ok=True)
         fig.savefig(FIGURES_DIR / "feature_importance_aggregated.png", dpi=150, bbox_inches="tight")
         print(f"[explain] Saved feature_importance_aggregated.png")
-    plt.show()
+    plt.close(fig)

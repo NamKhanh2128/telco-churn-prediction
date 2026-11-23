@@ -51,7 +51,7 @@ from sklearn.tree import DecisionTreeClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.neighbors import KNeighborsClassifier
-from sklearn.svm import LinearSVC
+from sklearn.svm import LinearSVC, SVC
 
 from src.config import (
     TEST_SIZE, VALIDATION_SIZE, RANDOM_STATE, CV_FOLDS,
@@ -59,8 +59,10 @@ from src.config import (
     DROP_TOTAL_CHARGES, CALIBRATE_PROBABILITIES, CALIBRATION_METHOD,
     PRIMARY_SCORING, SEARCH_ITERATIONS, SEARCH_N_JOBS,
     DEFAULT_RF_PARAMS, DEFAULT_DT_PARAMS, DEFAULT_LR_PARAMS,
-    DEFAULT_KNN_PARAMS, DEFAULT_SVM_PARAMS,
+    DEFAULT_KNN_PARAMS, DEFAULT_SVM_PARAMS, DEFAULT_SVM_RBF_PARAMS,
     RF_PARAM_GRID, DT_PARAM_GRID, KNN_PARAM_GRID, SVM_PARAM_GRID,
+    SVM_RBF_PARAM_GRID,
+    USE_FEATURE_ENGINEERING, ENGINEERED_NUMERIC_FEATURES,
 )
 from src.data_loader import (
     load_raw_data,
@@ -68,7 +70,11 @@ from src.data_loader import (
     get_feature_target,
     detect_feature_types,
 )
-from src.preprocessing import build_preprocessor, build_model_pipeline
+from src.preprocessing import (
+    build_preprocessor,
+    build_model_pipeline,
+    TelcoFeatureEngineer,
+)
 from src.evaluate import (
     print_evaluation, compute_metrics,
     plot_confusion_matrices, plot_roc_curves, plot_precision_recall_curves,
@@ -204,6 +210,7 @@ def main(drop_total_charges=None):
 
     # ─── 3. Build preprocessor ───────────────────────────
     print("\n[3/9] Building preprocessor...")
+    fe_transformer = TelcoFeatureEngineer(enabled=USE_FEATURE_ENGINEERING)
     def make_pipeline(model, scale_numeric):
         return build_model_pipeline(
             build_preprocessor(
@@ -212,6 +219,7 @@ def main(drop_total_charges=None):
                 scale_numeric=scale_numeric,
             ),
             model,
+            feature_engineer=fe_transformer,
         )
 
     # ─── 4. Define models ────────────────────────────────
@@ -225,11 +233,28 @@ def main(drop_total_charges=None):
         "param_grid": None,
     }
 
-    # Baseline: Logistic Regression
-    models["LogReg"] = {
-        "pipeline": make_pipeline(LogisticRegression(**DEFAULT_LR_PARAMS), True),
-        "param_grid": None,
-    }
+    # Baseline: Logistic Regression (Calibrated with Platt scaling for reliable risk scoring)
+    if CALIBRATE_PROBABILITIES:
+        models["LogReg"] = {
+            "pipeline": make_pipeline(
+                CalibratedClassifierCV(
+                    LogisticRegression(**DEFAULT_LR_PARAMS),
+                    method=CALIBRATION_METHOD,
+                    cv=CV_FOLDS,
+                ),
+                True,
+            ),
+            "param_grid": {
+                "classifier__estimator__C": [0.01, 0.1, 1.0, 5.0, 10.0],
+            },
+        }
+    else:
+        models["LogReg"] = {
+            "pipeline": make_pipeline(LogisticRegression(**DEFAULT_LR_PARAMS), True),
+            "param_grid": {
+                "classifier__C": [0.01, 0.1, 1.0, 5.0, 10.0],
+            },
+        }
 
     # Decision Tree
     models["DecisionTree"] = {
@@ -250,9 +275,39 @@ def main(drop_total_charges=None):
             "param_grid": KNN_PARAM_GRID,
         }
 
-        models["SVM_Linear"] = {
-            "pipeline": make_pipeline(LinearSVC(**DEFAULT_SVM_PARAMS), True),
-            "param_grid": SVM_PARAM_GRID,
+        # Linear SVM (Calibrated with Platt scaling so predict_proba, Brier, and ECE are valid)
+        if CALIBRATE_PROBABILITIES:
+            models["SVM_Linear"] = {
+                "pipeline": make_pipeline(
+                    CalibratedClassifierCV(
+                        LinearSVC(**DEFAULT_SVM_PARAMS),
+                        method=CALIBRATION_METHOD,
+                        cv=CV_FOLDS,
+                    ),
+                    True,
+                ),
+                "param_grid": {
+                    "classifier__estimator__C": [0.01, 0.1, 1, 10],
+                },
+            }
+        else:
+            models["SVM_Linear"] = {
+                "pipeline": make_pipeline(LinearSVC(**DEFAULT_SVM_PARAMS), True),
+                "param_grid": SVM_PARAM_GRID,
+            }
+
+        # Kernel SVM (RBF). SVC has no native probabilities, so it is wrapped in
+        # Platt scaling (same as SVM_Linear) to get valid predict_proba/Brier/ECE.
+        models["SVM_RBF"] = {
+            "pipeline": make_pipeline(
+                CalibratedClassifierCV(
+                    SVC(**DEFAULT_SVM_RBF_PARAMS),
+                    method=CALIBRATION_METHOD,
+                    cv=CV_FOLDS,
+                ),
+                True,
+            ),
+            "param_grid": SVM_RBF_PARAM_GRID,
         }
 
     # ─── 5. Train & Evaluate ─────────────────────────────
@@ -271,6 +326,7 @@ def main(drop_total_charges=None):
         )
 
     # ─── 6. Comparison table ─────────────────────────────
+    # (rebuilt in step 7 with the calibrated RF rows appended)
     print("\n[6/9] Building comparison table...")
     comparison_df = build_comparison_table(results)
     print("\n" + comparison_df.to_string())
@@ -314,6 +370,15 @@ def main(drop_total_charges=None):
         'test': threshold_metrics,
     }
 
+    # The "RandomForest" row is the uncalibrated tuned forest. Add explicit rows
+    # for the deployed (calibrated) model at 0.5 and at the cost-optimal
+    # threshold so the table never mixes the two silently.
+    comparison_extra = {
+        'RF_Calibrated@0.5': {'metrics': calibrated_default_metrics},
+        f"RF_Calibrated@{model_config['threshold']:.4f}": {'metrics': threshold_metrics},
+    }
+    comparison_df = build_comparison_table({**results, **comparison_extra})
+
     # ─── 8. Save best model ──────────────────────────────
     print("\n[8/9] Saving best model...")
     MODELS_DIR.mkdir(parents=True, exist_ok=True)
@@ -346,6 +411,24 @@ def main(drop_total_charges=None):
     save_results(results, comparison_df)
 
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
+    all_models_policy = {}
+    for eval_name in ["RandomForest", "LogReg", "SVM_Linear", "SVM_RBF"]:
+        if eval_name in results:
+            m_pipe = rf_deployed if eval_name == "RandomForest" else results[eval_name]["pipeline"]
+            if hasattr(m_pipe, "predict_proba"):
+                m_val_p = m_pipe.predict_proba(X_val)[:, 1]
+                m_opt = find_cost_optimal_threshold(y_val, m_val_p, cost_mode='classification')
+                m_test_p = m_pipe.predict_proba(X_test)[:, 1]
+                m_test_pol = compute_metrics(y_test, (m_test_p >= m_opt['best_threshold']).astype(int), m_test_p)
+                all_models_policy[eval_name] = {
+                    'best_threshold': m_opt['best_threshold'],
+                    'validation_cost': m_opt['best_cost'],
+                    'validation_savings': m_opt['savings'],
+                    'test_policy_f1': m_test_pol['f1_churn'],
+                    'test_policy_recall': m_test_pol['recall_churn'],
+                    'test_policy_precision': m_test_pol['precision_churn'],
+                }
+
     policy_payload = {
         'cost_mode': threshold_result['cost_mode'],
         'threshold_source': 'validation',
@@ -357,6 +440,7 @@ def main(drop_total_charges=None):
         'savings_on_validation': threshold_result['savings'],
         'test_metrics_at_default_threshold': calibrated_default_metrics,
         'test_metrics_at_selected_threshold': threshold_metrics,
+        'all_models_policy': all_models_policy,
     }
     with open(RESULTS_DIR / 'policy_metrics.json', 'w') as f:
         json.dump(policy_payload, f, indent=2, default=str)
@@ -387,6 +471,7 @@ def main(drop_total_charges=None):
         'feature_columns': list(X.columns),
         'numeric_features': list(numeric_features),
         'categorical_features': list(categorical_features),
+        'feature_engineering': USE_FEATURE_ENGINEERING,
         'global_feature_importance': global_feature_importance,
         'total_charges_policy': 'drop' if drop_total_charges else 'keep_ablation',
         'calibration': {

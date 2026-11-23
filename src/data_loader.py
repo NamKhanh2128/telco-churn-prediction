@@ -7,9 +7,11 @@ import pandas as pd
 from src.config import (
     DATASET_PATH,
     DROP_TOTAL_CHARGES,
+    ENGINEERED_NUMERIC_FEATURES,
     ID_COL,
     NUMERIC_FEATURES,
     TARGET_COL,
+    USE_FEATURE_ENGINEERING,
 )
 
 
@@ -126,9 +128,17 @@ def get_feature_target(df):
     return df.drop(columns=[TARGET_COL]), df[TARGET_COL]
 
 
-def detect_feature_types(X):
+def detect_feature_types(X, include_engineered=None):
     '''Return numeric and categorical columns in deterministic order.'''
+    if include_engineered is None:
+        include_engineered = USE_FEATURE_ENGINEERING
+
     numeric = [column for column in NUMERIC_FEATURES if column in X.columns]
+    if include_engineered and 'MonthlyCharges' in X.columns and 'tenure' in X.columns:
+        for feat in ENGINEERED_NUMERIC_FEATURES:
+            if feat not in numeric:
+                numeric.append(feat)
+
     categorical = [column for column in X.columns if column not in numeric]
     print(f'[data_loader] Numeric features ({len(numeric)}): {numeric}')
     print(f'[data_loader] Categorical features ({len(categorical)}): {categorical}')

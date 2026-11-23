@@ -17,6 +17,9 @@ RESULTS_DIR = PROJECT_ROOT / "results"
 
 DATASET_FILENAME = "WA_Fn-UseC_-Telco-Customer-Churn.csv"
 DATASET_PATH = DATA_RAW_DIR / DATASET_FILENAME
+ORANGE_DATASET_FILENAME = "telecom_churn.csv"
+ORANGE_DATASET_PATH = DATA_RAW_DIR / "orange-telecom" / ORANGE_DATASET_FILENAME
+IRANIAN_DATASET_PATH = DATA_RAW_DIR / "iranian-uci" / "Customer Churn.csv"
 
 # ─── Dataset ─────────────────────────────────────────────────
 TARGET_COL = "Churn"
@@ -29,11 +32,23 @@ NUMERIC_FEATURES = [
     "SeniorCitizen",
 ]
 
+# Feature engineering for IBM Telco (interaction and ratio features)
+USE_FEATURE_ENGINEERING = True
+ENGINEERED_NUMERIC_FEATURES = [
+    "charges_per_tenure",
+    "total_additional_services",
+    "streaming_services",
+    "security_support_services",
+    "is_high_risk_contract",
+    "has_bundle",
+]
+
 # Will be auto-detected from non-numeric, non-target, non-ID columns
 CATEGORICAL_FEATURES = None  # Set to None = auto-detect
 
 # ─── Train / Test ────────────────────────────────────────────
-TEST_SIZE = 0.20
+# Final protocol: 70% train / 15% validation / 15% test (fractions of the full dataset).
+TEST_SIZE = 0.15
 VALIDATION_SIZE = 0.15
 RANDOM_STATE = 42
 CV_FOLDS = 5
@@ -44,7 +59,7 @@ CALIBRATE_PROBABILITIES = True
 CALIBRATION_METHOD = 'sigmoid'
 PRIMARY_SCORING = 'average_precision'
 SEARCH_ITERATIONS = 30
-SEARCH_N_JOBS = 1
+SEARCH_N_JOBS = 4
 
 # ─── Business Cost Ratios ───────────────────────────────────
 # FP: gửi retention offer cho KH không churn → lãng phí $50
@@ -83,6 +98,15 @@ DEFAULT_SVM_PARAMS = {
     "random_state": RANDOM_STATE,
 }
 
+# Kernel SVM (RBF) — the non-linear "SVM" named in the project brief.
+DEFAULT_SVM_RBF_PARAMS = {
+    "kernel": "rbf",
+    "C": 1.0,
+    "gamma": "scale",
+    "class_weight": "balanced",
+    "random_state": RANDOM_STATE,
+}
+
 # ─── Hyperparameter search spaces ───────────────────────────
 RF_PARAM_GRID = {
     "classifier__n_estimators": [100, 200, 500],
@@ -108,4 +132,10 @@ KNN_PARAM_GRID = {
 SVM_PARAM_GRID = {
     "classifier__C": [0.01, 0.1, 1, 10],
     "classifier__loss": ["hinge", "squared_hinge"],
+}
+
+# Search space for the calibrated RBF SVM (CalibratedClassifierCV wraps SVC).
+SVM_RBF_PARAM_GRID = {
+    "classifier__estimator__C": [0.1, 0.5, 1, 5, 10],
+    "classifier__estimator__gamma": ["scale", 0.01, 0.05, 0.1],
 }

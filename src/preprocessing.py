@@ -28,10 +28,82 @@ ColumnTransformer
      └── OneHotEncoder(drop="first", handle_unknown="ignore")
 """
 
+import pandas as pd
+from sklearn.base import BaseEstimator, TransformerMixin
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
+
+
+class TelcoFeatureEngineer(BaseEstimator, TransformerMixin):
+    """
+    Leak-free feature engineering transformer for Telco customer churn.
+
+    Creates domain-specific non-linear interaction and ratio features:
+    1. charges_per_tenure: MonthlyCharges / (tenure + 1)
+    2. total_additional_services: count of active add-on services (0-6)
+    3. streaming_services: count of streaming packages (0-2)
+    4. security_support_services: count of security/tech packages (0-2)
+    5. is_high_risk_contract: binary indicator for Month-to-month + Electronic check
+    6. has_bundle: binary indicator for Internet + Phone bundle
+    """
+
+    def __init__(self, enabled=True):
+        self.enabled = enabled
+
+    def fit(self, X, y=None):
+        return self
+
+    def transform(self, X):
+        if not self.enabled:
+            return X
+        X = X.copy()
+        if 'MonthlyCharges' in X.columns and 'tenure' in X.columns:
+            tenure_series = pd.to_numeric(X['tenure'], errors='coerce').fillna(0)
+            X['charges_per_tenure'] = X['MonthlyCharges'] / (tenure_series + 1)
+
+        services = [
+            'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+            'TechSupport', 'StreamingTV', 'StreamingMovies',
+        ]
+        present_services = [s for s in services if s in X.columns]
+        if present_services:
+            X['total_additional_services'] = (X[present_services] == 'Yes').sum(axis=1)
+            streaming = [s for s in ['StreamingTV', 'StreamingMovies'] if s in X.columns]
+            if streaming:
+                X['streaming_services'] = (X[streaming] == 'Yes').sum(axis=1)
+            security = [s for s in ['OnlineSecurity', 'TechSupport'] if s in X.columns]
+            if security:
+                X['security_support_services'] = (X[security] == 'Yes').sum(axis=1)
+
+        if 'Contract' in X.columns and 'PaymentMethod' in X.columns:
+            X['is_high_risk_contract'] = (
+                (X['Contract'] == 'Month-to-month') &
+                (X['PaymentMethod'] == 'Electronic check')
+            ).astype(int)
+
+        if 'InternetService' in X.columns and 'PhoneService' in X.columns:
+            X['has_bundle'] = (
+                (X['InternetService'] != 'No') &
+                (X['PhoneService'] == 'Yes')
+            ).astype(int)
+
+        return X
+
+    def get_feature_names_out(self, input_features=None):
+        if input_features is None:
+            return None
+        output_features = list(input_features)
+        if self.enabled:
+            for feat in [
+                'charges_per_tenure', 'total_additional_services',
+                'streaming_services', 'security_support_services',
+                'is_high_risk_contract', 'has_bundle',
+            ]:
+                if feat not in output_features:
+                    output_features.append(feat)
+        return output_features
 
 
 def build_preprocessor(numeric_features, categorical_features, scale_numeric=True):
@@ -72,9 +144,9 @@ def build_preprocessor(numeric_features, categorical_features, scale_numeric=Tru
     return preprocessor
 
 
-def build_model_pipeline(preprocessor, classifier):
+def build_model_pipeline(preprocessor, classifier, feature_engineer=None):
     """
-    Build a full Pipeline: preprocessor → classifier.
+    Build a full Pipeline: (optional feature_engineer) → preprocessor → classifier.
 
     For tree-based models (DT, RF): use class_weight="balanced" instead of SMOTE.
     For distance-based models (KNN, SVM): SMOTE can be added via imblearn Pipeline
@@ -84,17 +156,19 @@ def build_model_pipeline(preprocessor, classifier):
     ----------
     preprocessor : ColumnTransformer
     classifier : sklearn estimator
+    feature_engineer : TelcoFeatureEngineer, optional
 
     Returns
     -------
     sklearn.pipeline.Pipeline
     """
-    pipe = Pipeline(steps=[
-        ("preprocessor", preprocessor),
-        ("classifier", classifier),
-    ])
+    steps = []
+    if feature_engineer is not None:
+        steps.append(("feature_engineer", feature_engineer))
+    steps.append(("preprocessor", preprocessor))
+    steps.append(("classifier", classifier))
 
-    return pipe
+    return Pipeline(steps=steps)
 
 
 def get_feature_names_from_preprocessor(preprocessor, numeric_features, categorical_features):
