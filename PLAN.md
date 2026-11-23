@@ -136,15 +136,21 @@ Thùy Linh → chương 2–3 (Quỳnh Anh) · Nam Khánh → chương 4.3, 5.1,
 **Câu hỏi bảo vệ (`docs/defense_qa.md`):** mỗi người viết câu trả lời cho các câu hỏi trong plan
 của mình; Thùy Linh tổng hợp thành một file.
 
+**Tài liệu tham khảo chung (`docs/report/references.md`):** mọi người gửi tài liệu của phần mình
+cho Thùy Linh để gộp và thống nhất kiểu trích dẫn.
+
+**Đối chiếu số liệu (tuần 4):** Nhật Linh kiểm tra mọi con số trong báo cáo và slide khớp
+snapshot tag `v1.0-results`, gửi danh sách chỗ lệch cho người viết sửa.
+
 ---
 
 ## 6. Phân vùng file (tránh xung đột khi merge)
 
 | Vùng | Chủ sở hữu | Người khác muốn sửa thì… |
 |---|---|---|
-| `notebooks/01_*`, `figures/eda/`, `data/raw/**/README.md`, `docs/data_dictionary.md`, `docs/report/references.md` | Quỳnh Anh | nhắn Quỳnh Anh |
+| `notebooks/01_*`, `figures/eda/`, `data/raw/**/README.md`, `docs/data_dictionary.md` | Quỳnh Anh | nhắn Quỳnh Anh |
 | `notebooks/02_*`, `src/ablation.py`, `src/model_stability.py`, `src/policy_analysis.py`, `src/explain.py`, `src/optimize_threshold.py`, `src/evaluate.py`, `DEFAULT_RF_PARAMS`/`RF_PARAM_GRID` trong `src/config.py`, `figures/rf/`, `figures/policy/` | Hải Anh | nhắn Hải Anh |
-| `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`; `notebooks/03_*`, `figures/models/`, `docs/defense_qa.md` | Thùy Linh | nhắn Thùy Linh |
+| `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`; `notebooks/03_*`, `figures/models/`, `docs/defense_qa.md`, `docs/report/references.md` | Thùy Linh | nhắn Thùy Linh |
 | `COST_*` trong `src/config.py`, `notebooks/04_*`, `docs/slides/` | Nhật Linh | nhắn Nhật Linh |
 | `src/train.py`, `src/compare_datasets.py`, `src/preprocessing.py`, `src/data_loader.py`, `src/reproduce.py`, `src/export_results.py`, `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `tests/`, `.github/`, `README.md`, `.gitignore` | Nam Khánh | nhắn Nam Khánh |
 | `PLAN.md`, `mustdo.md` | Hải Anh | PR nhỏ, Hải Anh duyệt |
