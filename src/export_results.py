@@ -258,10 +258,20 @@ def _rf_analysis_section():
     table = _read_optional(RESULTS_DIR / 'rf_analysis' / 'rf_summary.csv')
     if table is None:
         return []
+
+    def as_label(value):
+        # CSV round-trips turn 'None' into NaN and 10 into 10.0.
+        if pd.isna(value):
+            return 'None'
+        try:
+            return str(int(float(value)))
+        except (TypeError, ValueError):
+            return str(value)
+
     scores = pd.DataFrame({
         'Dataset': table['dataset'],
-        'n_estimators': table['n_estimators'].astype(str),
-        'max_depth': table['max_depth'].astype(str),
+        'n_estimators': table['n_estimators'].map(as_label),
+        'max_depth': table['max_depth'].map(as_label),
         'OOB AP': table['oob_ap'],
         'CV AP': [_mean_std(m, s) for m, s in zip(table['cv_ap_mean'], table['cv_ap_std'])],
         'Test AP': table['test_ap'],
