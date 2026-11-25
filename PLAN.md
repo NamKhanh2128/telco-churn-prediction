@@ -19,11 +19,11 @@ Plan chi tiết của từng người nằm ở file `plans/<tên>.md` **trên b
 
 | Thành viên | Vai trò | Branch | Plan chi tiết |
 |---|---|---|---|
-| **Lê Hải Anh** (trưởng nhóm) | Điều phối; hệ thống: môi trường, CI, API, giao diện, deploy; ráp báo cáo, slide và câu hỏi bảo vệ | `haianh/system-deploy` | `plans/haianh.md` |
+| **Nguyễn Đức Nam Khánh** (trưởng nhóm) | Điều phối; Random Forest (mô hình chính) và các thí nghiệm AI: khung benchmark, ablation, độ ổn định, calibration, giải thích mô hình; tái lập kết quả | `namkhanh/rf-main-model` | `plans/namkhanh.md` |
+| **Lê Hải Anh** | Hệ thống: môi trường, CI, API, giao diện, deploy; ráp báo cáo, slide và câu hỏi bảo vệ | `haianh/system-deploy` | `plans/haianh.md` |
 | **Quách Nguyễn Quỳnh Anh** | Dữ liệu: script tải & kiểm tra dữ liệu, EDA, nguồn gốc dữ liệu; tổng quan tài liệu | `quynhanh/data-eda` | `plans/quynhanh.md` |
 | **Mai Thùy Linh** | Các mô hình so sánh DT/KNN/SVM: cài đặt trong benchmark, siêu tham số, phân tích và trình bày kết quả | `thuylinh/model-comparison` | `plans/thuylinh.md` |
 | **Nguyễn Nhật Linh** | Đánh giá & kinh doanh: code phân tích ngưỡng/chi phí, chính sách quyết định, kiểm tra công bằng | `nhatlinh/evaluation-business` | `plans/nhatlinh.md` |
-| **Nguyễn Đức Nam Khánh** | Random Forest (mô hình chính) và các thí nghiệm AI: khung benchmark, ablation, độ ổn định, calibration, giải thích mô hình; tái lập kết quả | `namkhanh/rf-main-model` | `plans/namkhanh.md` |
 
 Xem plan của mình: `git checkout <branch>` rồi mở `plans/<tên>.md`, hoặc chọn branch trên GitHub.
 

@@ -1,4 +1,4 @@
-# Plan — Nguyễn Đức Nam Khánh · Random Forest (mô hình chính) & thí nghiệm AI
+# Plan — Nguyễn Đức Nam Khánh · Trưởng nhóm · Random Forest (mô hình chính) & thí nghiệm AI
 
 - **Branch:** `namkhanh/rf-main-model`
 - **Vùng file phụ trách:**
