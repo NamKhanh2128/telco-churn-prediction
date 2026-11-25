@@ -5,7 +5,7 @@
 > khiếu nại, gói cước). **Random Forest là phương pháp chính**, so sánh với **Decision Tree, KNN
 > và SVM**. Đánh giá bằng **Accuracy, Precision, Recall, F1-score**.
 >
-> Cập nhật: 24/11/2026 · Người điều phối: Lê Hải Anh · Mô hình chính & thí nghiệm: Nguyễn Đức Nam Khánh
+> Cập nhật: 25/11/2026 · Nhóm trưởng, điều phối: Nguyễn Đức Nam Khánh (kiêm mô hình chính & thí nghiệm)
 
 ---
 
