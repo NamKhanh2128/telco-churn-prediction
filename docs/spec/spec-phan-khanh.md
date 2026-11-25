@@ -41,7 +41,7 @@
 
 | Nhóm | File |
 |---|---|
-| Khung thí nghiệm, mô hình chính | `src/train.py`, `src/compare_datasets.py` (trừ các nhánh DT/KNN/SVM trong `_build_model` — của Thùy Linh), `src/preprocessing.py`, `src/data_loader.py`, `src/evaluate.py`, `src/optimize_threshold.py`, `src/explain.py`, `src/iranian_audit.py` |
+| Khung thí nghiệm, mô hình chính | `src/train.py`, `src/compare_datasets.py` (gồm cả nhánh DT/KNN/SVM trong `_build_model`, theo phân công 25/11), `src/preprocessing.py`, `src/data_loader.py`, `src/evaluate.py`, `src/optimize_threshold.py`, `src/explain.py`, `src/iranian_audit.py` |
 | Phân tích | `src/ablation.py`, `src/model_stability.py`, `src/calibration_analysis.py`, `src/rf_analysis.py`, `notebooks/02_random_forest_analysis.ipynb`, `figures/rf/` |
 | Tái lập | `src/reproduce.py`, `src/export_results.py`, `reports/results_snapshot.md`, `models/tuned_params.json`, `models/config.json`, `models/metadata.json` |
 | Cấu hình | Trong `src/config.py`: phần đường dẫn/sandbox, `DEFAULT_RF_PARAMS`, `RF_PARAM_GRID`, `CALIBRATION_*`, giao thức chia dữ liệu |
@@ -52,9 +52,9 @@
 
 | Thành viên | Vùng của bạn ấy | Khánh chỉ làm |
 |---|---|---|
-| Hải Anh | `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `.github/`, `README.md`, `PLAN.md`, `mustdo.md`; `skipif` cho test cần dữ liệu thật (PR CI của Hải Anh) | Cung cấp model, `config.json`, `metadata.json`, `explain_customer` |
+| Hải Anh | `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `tests/test_api.py`, `.github/`, `.gitignore`, `README.md`, `mustdo.md`, khung slide `docs/slides/`, `docs/defense_qa.md` (Khánh chỉ thêm file nội dung của mình: `docs/slides/namkhanh-random-forest.md`, `docs/defense_qa/namkhanh.md`); `PLAN.md` (nhóm trưởng Khánh cập nhật phần vai trò); `skipif` cho test cần dữ liệu thật (PR CI của Hải Anh) | Cung cấp model, `config.json`, `metadata.json`, `explain_customer` |
 | Quỳnh Anh | `src/download_data.py`, `tests/test_download.py`, `notebooks/01_*`, `figures/eda/`, `docs/data_dictionary.md` | Review PR; `reproduce` chỉ *ghi* SHA-256, việc *kiểm tra* hash là của `download_data.py` |
-| Thùy Linh | Nhánh DT/KNN/SVM trong `_build_model`, `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT/KNN/SVM, `tests/test_models.py`, `notebooks/03_*`, `figures/models/` | Để sẵn chỗ chèn có chú thích; test "contract" tự kiểm tra mô hình mới |
+| Thùy Linh | `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT/KNN/SVM, `tests/test_models.py`, `notebooks/03_*`, `figures/models/`; xin ý kiến giảng viên (25–29/11) | Theo phân công 25/11, Khánh chạy DT/KNN/SVM trên 3 dataset; test "contract" tự kiểm tra mọi mô hình |
 | Nhật Linh | `src/policy_analysis.py`, `tests/test_policy.py`, `COST_*` trong `config.py`, `notebooks/04_*`, `figures/policy/` | `fit_deployed_rf`, `OPTIONAL_STEPS` trong reproduce, cơ chế fragment snapshot |
 
 ---
@@ -95,7 +95,7 @@ trong `PLAN.md`, có thể đổi sang Iranian sau khi hỏi giảng viên).
 | Chống rò rỉ | Mọi bước học từ dữ liệu (imputer, one-hot, scaler, SMOTE, calibration, tuning) nằm trong `Pipeline`, chỉ `fit` trên train | Quy tắc vàng, xem mục 4.1 của báo cáo |
 | Đặc trưng IBM | 6 đặc trưng tạo thêm (`TelcoFeatureEngineer`), bỏ `TotalCharges` | `TotalCharges ≈ tenure × MonthlyCharges` (trùng thông tin); ablation A1 kiểm chứng |
 | Mất cân bằng | `class_weight="balanced_subsample"` cho RF; không dùng SMOTE trong giao thức chính | Đơn giản, không sinh dữ liệu giả; ablation A2 so sánh |
-| Chỉ số chính | **AP (PR-AUC)**; kèm Precision/Recall/F1 lớp churn, ROC-AUC, Brier, ECE, lift@10% | Accuracy gây hiểu lầm khi mất cân bằng (Dummy đạt ~0.73 trên IBM) |
+| Chỉ số chính | **AP (PR-AUC)**; kèm Precision/Recall/F1 lớp churn, ROC-AUC, Brier, ECE, lift@10% | Accuracy gây hiểu lầm khi mất cân bằng (Dummy đạt 0.735 trên IBM) |
 | Tuning | `RandomizedSearchCV`: `n_iter = min(30, số tổ hợp)`, 5-fold (Iranian: chia theo nhóm), `refit="average_precision"`, seed 42 | Lưới RF có 216 tổ hợp; 30 tổ hợp ngẫu nhiên đủ tốt mà rẻ |
 | Tune một lần | Tham số tune trên train của seed 42, ghi vào `models/tuned_params.json`, mọi phân tích dùng lại | Tiết kiệm thời gian; hạn chế ghi ở mục 9 |
 | Calibration | Platt (sigmoid), 5-fold CV trên train, `ensemble=False` (`CALIBRATION_ENSEMBLE`), RF được `clone` trước khi bọc | Xác suất đúng nghĩa để chọn ngưỡng; một rừng thay vì năm (file nhỏ, chất lượng như nhau — snapshot §8) |
@@ -118,7 +118,7 @@ trong `PLAN.md`, có thể đổi sang Iranian sau khi hỏi giảng viên).
   `CALIBRATION_ENSEMBLE = False`.
 - RF: `DEFAULT_RF_PARAMS` (200 cây, `balanced_subsample`, seed 42), `RF_PARAM_GRID` (5 tham số, 216 tổ hợp).
 - **Không sửa** khối `COST_*` (Nhật Linh, sau quyết định D3) và `DEFAULT_*_PARAMS`/`*_PARAM_GRID`
-  của DT/KNN/SVM (Thùy Linh).
+  của DT/KNN/SVM (Thùy Linh phụ trách lưới tham số).
 
 ### 4.2. `src/data_loader.py`, `src/preprocessing.py`
 
@@ -143,7 +143,7 @@ trong `PLAN.md`, có thể đổi sang Iranian sau khi hỏi giảng viên).
 | `DATASET_PROFILES` | Đường dẫn và cột nhãn của `ibm`, `orange`, `iranian` |
 | `load_dataset(name, keep_total_charges=False)` | Đọc và làm sạch tối thiểu; trả `X, y, profile, audit` (audit có SHA-256) |
 | `feature_lists(X, name)` | Cột số/phân loại; IBM qua `detect_feature_types` |
-| `BENCHMARK_MODELS` | `['Dummy', 'LogReg', 'RandomForest']` (+ DT/KNN/SVM khi Thùy Linh thêm) |
+| `BENCHMARK_MODELS` | `['Dummy', 'LogReg', 'RandomForest']` (+ DT/KNN/SVM, Khánh thêm trước 01/12) |
 | `REQUIRED_MODELS` | `('LogReg', 'RandomForest')` — luôn chạy, kể cả với `--models` |
 | `MODEL_PARAM_GRIDS` | Lưới khi `--tune`; `_grid_for_pipeline` tự đổi `classifier__` ↔ `classifier__estimator__` khi mô hình bọc `CalibratedClassifierCV` |
 | `_build_model(name, numeric, categorical, is_ibm)` | Pipeline chưa fit; có chú thích chỗ chèn DT/KNN/SVM; `_calibrated(...)` bọc Platt cho LogReg/SVM |
@@ -182,7 +182,8 @@ Chạy 7 mô hình trên IBM (Dummy, LogReg, DecisionTree, RandomForest, KNN, SV
 - `compute_metrics(y_true, y_pred, y_proba)` → `accuracy`, `precision_churn`, `recall_churn`,
   `f1_churn`, `f1_macro`, `balanced_accuracy`, `roc_auc`, `average_precision`, `brier_score`,
   `log_loss`, `ece` (10 bin đều), `lift_at_10pct`.
-- `find_cost_optimal_threshold(y, p, cost_fp, cost_fn, cost_mode, thresholds, verbose=True)`: duyệt
+- `find_cost_optimal_threshold(y_true, y_proba, cost_fp=None, cost_fn=None, cost_mode='classification',
+  cost_action=None, thresholds=None, verbose=True)`: duyệt
   mọi ngưỡng là các xác suất dự đoán (thêm 0 và 1), trả `best_threshold`, `best_cost`,
   `default_cost` (ngưỡng 0.5), `savings`, `best_f1_threshold`. Gọi trong vòng lặp thì `verbose=False`.
 - `save_model_config(...)` ghi `models/config.json` cho API.
@@ -233,13 +234,13 @@ hình có AP trung bình cao nhất còn lại:
 - `mcnemar_exact` trên tập test của seed 42.
 
 Kết quả: `results/model_stability/{stability_runs,stability_summary,stat_tests}.csv`, snapshot §7.
-Mô hình Thùy Linh thêm vào `BENCHMARK_MODELS` tự được đưa vào.
+Mô hình nào được thêm vào `BENCHMARK_MODELS` cũng tự được đưa vào.
 
 ### 4.10. `src/calibration_analysis.py`
 
 So sánh RF chưa calibrate, sigmoid `ensemble=True` (5 rừng), sigmoid `ensemble=False` (model deploy),
 isotonic, và các mô hình khác; ROC-AUC/AP/Brier/log-loss/ECE trên test, AP/Brier/ECE trên validation
-(cột `val_*` — **lựa chọn dựa trên cột này**), thời gian fit, kích thước file (thường và nén
+(cột `val_*`; phương án deploy chọn theo Val AP và Val Brier), thời gian fit, kích thước file (thường và nén
 `compress=3`). Iranian dùng fold chia theo nhóm. Kết quả: `results/calibration/`,
 `figures/rf/reliability_<dataset>.png`, snapshot §8.
 
@@ -289,17 +290,93 @@ hình × dataset · §6 ablation A2/A3 · §7 10 seed + kiểm định · §8 ca
 ## 6. Kết quả hiện tại và cách diễn giải
 
 <!-- RESULTS-START -->
-_(điền sau lượt chạy chính thức)_
+Số liệu của lượt chạy chính thức ngày 25/11 trên commit sạch `89fa839` (snapshot ghi rõ commit, SHA-256
+dữ liệu và phiên bản thư viện). Khi có tag `v1.0-results`, thay bằng số của tag.
+
+**6.1. IBM — 7 mô hình, tập test, ngưỡng 0.5 (snapshot §1)**
+
+| Mô hình | Recall | F1 | ROC-AUC | AP | ECE |
+|---|---:|---:|---:|---:|---:|
+| RandomForest (đã tune, chưa calibrate) | 0.757 | 0.633 | 0.851 | 0.665 | 0.121 |
+| RF đã calibrate (model deploy) @0.5 | 0.561 | 0.595 | 0.851 | 0.665 | 0.029 |
+| Logistic Regression | 0.532 | 0.594 | 0.853 | 0.672 | 0.015 |
+| SVM tuyến tính | 0.550 | 0.609 | 0.852 | 0.672 | 0.028 |
+| Decision Tree | 0.825 | 0.640 | 0.849 | 0.638 | 0.153 |
+| Dummy | 0 | 0 | 0.500 | 0.265 | — |
+
+Cách đọc: về **xếp hạng** (ROC-AUC, AP) RF ngang LogReg/SVM trên IBM. Recall/F1 cao của RF ở ngưỡng 0.5
+là do `class_weight` (chưa calibrate): calibrate xong, RF @0.5 có F1 0.595 — ngang LogReg. Accuracy không
+dùng làm chỉ số chính (Dummy đạt 0.735).
+
+**6.2. Ngưỡng theo chi phí (§2).** Với FP = 50, FN = 500 (giả định), ngưỡng chọn trên validation là
+**0.054** (lý thuyết cho xác suất đã calibrate: 50/550 ≈ 0.09); trên test recall 0.986, precision 0.352 —
+tức gắn nhãn churn (liên hệ) cho khoảng 74% khách của tập test (785/1057). Kết luận này phụ thuộc hoàn toàn vào chi phí giả định → chờ D3 (Nhật Linh).
+
+**6.3. Ba dataset, 10 seed (§7) — chỉ số để trích dẫn là AP**
+
+| Dataset | AP RF | AP LogReg | RF > LogReg | p (t có hiệu chỉnh) |
+|---|---:|---:|---:|---:|
+| IBM | 0.666 ± 0.020 | 0.668 ± 0.015 | 3/10 seed | 0.60 |
+| Orange | 0.835 ± 0.047 | 0.465 ± 0.059 | 10/10 | 4.8·10⁻⁷ |
+| Iranian | 0.912 ± 0.021 | 0.768 ± 0.029 | 10/10 | 5.1·10⁻⁷ |
+
+ROC-AUC cho kết luận giống hệt (IBM p = 0.65; Orange, Iranian p < 10⁻⁴). F1/McNemar ở ngưỡng 0.5 có p rất
+nhỏ cả trên IBM nhưng chỉ là so **điểm vận hành** (cột `scope`), không dùng để kết luận mô hình nào tốt hơn.
+
+**6.4. Iranian: chia theo dòng hay theo nhóm (§4).** AP 10 seed: theo nhóm 0.910 ± 0.022, theo dòng
+0.890 ± 0.034 — chia theo dòng **không** làm điểm cao hơn trên bộ này. Vẫn dùng chia theo nhóm vì chỉ cách
+này đảm bảo tập test là khách "chưa thấy"; nói đúng như vậy khi bảo vệ, không nói "rò rỉ làm điểm phồng".
+
+**6.5. Ablation (A1: §3, một lần chia seed 42; A2/A3: §6, RF đã tune, 5 seed)**
+
+- **A1 `TotalCharges`:** giữ cột này AP IBM 0.668 so với 0.665 khi bỏ — gần như không đổi (thông tin trùng
+  `tenure × MonthlyCharges`).
+- **A2 mất cân bằng:** `class_weight` **không** cải thiện xếp hạng: AP IBM 0.677 vs 0.677 (không xử lý),
+  Orange 0.816 vs 0.829, Iranian 0.882 vs 0.925 (validation AP cùng chiều). Tác dụng chính là dời điểm vận
+  hành ở 0.5 (IBM recall 0.751 vs 0.509) và làm lệch xác suất (IBM ECE 0.118 vs 0.027). So với không xử lý, SMOTE giảm
+  AP trên cả 3 dataset (IBM 0.662 vs 0.677, Orange 0.792 vs 0.829, Iranian 0.898 vs 0.925). → Đề xuất trước 06/12: đưa `class_weight` vào lưới
+  tune (`{balanced_subsample, None}`); hiện giữ nguyên vì ngưỡng cuối cùng chọn sau calibration.
+- **A3 chuẩn hóa:** chênh lệch F1/AP ≤ 0.0012 — cây không bị ảnh hưởng.
+
+**6.6. Calibration (§8, IBM).** RF chưa calibrate: ECE 0.121, xác suất trung bình 0.386 trong khi tỉ lệ
+churn thật 0.265 (lệch lên do `class_weight`). Sigmoid `ensemble=False` (deploy): ECE 0.029, trung bình
+0.272, AP giữ nguyên 0.665; trên validation chất lượng như `ensemble=True` (AP 0.6275 vs 0.6281, Brier
+0.1383 vs 0.1381) nhưng **16.9 MB so với 73.9 MB** (nén: 6.6 MB). Model deploy cũ 91 MB (5 rừng + bản
+thừa) → 34 MB (1 rừng + bản thừa) → **17 MB** (1 rừng).
+
+**6.7. Phân tích RF (§9)**
+
+| Dataset | Tham số tune | OOB AP | CV AP (fold tune) | Test AP |
+|---|---|---:|---:|---:|
+| IBM | 500 cây, sâu 10, lá ≥ 5 | 0.662 | 0.663 ± 0.024 | 0.665 |
+| Iranian | 200 cây, không giới hạn | 0.889 | 0.891 ± 0.038 | 0.912 |
+| Orange | 500 cây, không giới hạn | 0.847 | 0.840 ± 0.053 | 0.768 |
+
+- Validation curve IBM: CV AP ở độ sâu 8/10/12/None là 0.664/0.663/0.661/0.660 — chênh < 0.004, nhỏ hơn
+  nhiều độ lệch giữa các fold (≈ 0.024); trong khi AP trên train tăng từ 0.75 lên 0.83 → sâu hơn chỉ học
+  thuộc train mà không lợi gì. Số cây: đi ngang từ 200 cây. Iranian/Orange: cây sâu (≥ 12) tốt hơn rõ.
+- Orange test AP (seed 42) 0.768 thấp hơn CV nhưng trung bình 10 seed 0.835 khớp CV: tập test chỉ 500 dòng
+  (~72 khách churn) nên một lần chia có thể "xui".
+- Độ quan trọng: IBM ba cách đồng thuận (Spearman 0.84–0.96; đứng đầu `charges_per_tenure`, `tenure`,
+  `Contract`, `InternetService`). Iranian MDI–permutation chỉ 0.31: `Complains` đứng đầu permutation,
+  `Customer Value` âm (biến tương quan bù nhau). Orange: `State` hạng 5 theo MDI/SHAP nhưng hạng 15 theo
+  permutation (≈ 0.001) — thiên vị của MDI với biến nhiều giá trị.
+- SHAP cục bộ IBM: TP (điểm 0.94) — mới 1 tháng, cáp quang, hợp đồng tháng + Electronic check; FN (0.09) —
+  48 tháng, DSL, hợp đồng 1 năm, có bảo mật + hỗ trợ; FP (0.94) — 2 tháng, cáp quang, hợp đồng tháng.
 <!-- RESULTS-END -->
 
 ---
 
 ## 7. Hợp đồng tích hợp với từng thành viên
 
-### 7.1. Thùy Linh — DT, KNN, SVM vào benchmark 3 dataset
+### 7.1. Thùy Linh — DT, KNN, SVM
+
+Theo phân công 25/11: Khánh chạy DT, KNN, SVM trên 3 dataset (trước 01/12); Thùy Linh phụ trách lưới tham
+số (`*_PARAM_GRID`), `tests/test_models.py`, notebook 03, phần phân tích và các mục 4.3, 5.1, 5.4, và xin ý
+kiến giảng viên (25–29/11). Các bước thêm một mô hình:
 
 1. Thêm tên vào `BENCHMARK_MODELS`; thêm nhánh `elif` ở chỗ có chú thích *"Comparison models
-   (Thùy Linh)"* trong `_build_model` (import lớp mô hình, dùng `DEFAULT_*_PARAMS`, SVM bọc
+   (DT, KNN, SVM)"* trong `_build_model` (import lớp mô hình, dùng `DEFAULT_*_PARAMS`, SVM bọc
    `_calibrated(...)`, `scale_numeric=True` cho KNN/SVM).
 2. Thêm lưới vào `MODEL_PARAM_GRIDS` (lưới đặt trong `config.py`).
 3. `python -m pytest tests/test_experiments.py -q`: test contract kiểm tra mọi mô hình (fit được,
@@ -307,8 +384,8 @@ _(điền sau lượt chạy chính thức)_
 4. `python -m src.compare_datasets --dataset all --tune` (chỉ mô hình mới: `--models DecisionTree KNN
    SVM_Linear SVM_RBF`). Tham số tốt nhất tự ghi vào `models/tuned_params.json`; `model_stability`
    và `calibration_analysis` tự nhận mô hình mới.
-5. Khánh review: không đổi nhánh RF/LogReg/Dummy; tham số tốt nhất không nằm ở biên lưới (nếu có thì
-   mở rộng lưới); `model_comparison_long.csv` đủ 6–7 mô hình × 3 dataset.
+5. Thùy Linh kiểm tra: tham số tốt nhất không nằm ở biên lưới (nếu có thì mở rộng lưới trong
+   `config.py`); `model_comparison_long.csv` đủ 6–7 mô hình × 3 dataset.
 
 ### 7.2. Nhật Linh — phân tích ngưỡng và chính sách
 
@@ -374,13 +451,13 @@ _(điền sau lượt chạy chính thức)_
 | Hạn chế | Ảnh hưởng | Cách nói khi bảo vệ |
 |---|---|---|
 | Tham số tune một lần trên train của seed 42, dùng lại cho 10 seed | Một phần test của seed khác từng nằm trong train lúc tune → hơi lợi cho mô hình đã tune (RF và LogReg như nhau) | Đã ghi rõ; so sánh vẫn công bằng giữa các mô hình |
-| Chi phí FP/FN là giả định | Ngưỡng 0.05 rất thấp, khuyến nghị "liên hệ gần hết khách" | Đang làm phân tích độ nhạy + chính sách top-k (Nhật Linh) |
+| Chi phí FP/FN là giả định | Ngưỡng 0.054 rất thấp: gắn nhãn churn cho khoảng 3/4 số khách | Đang làm phân tích độ nhạy + chính sách top-k (Nhật Linh) |
 | Rủi ro rò rỉ theo thời gian ở Iranian (`Complains`, `Status`) | AP rất cao có thể một phần do thông tin "tương lai" | Đã ghi là câu hỏi mở; đề xuất kiểm tra |
 | Calibration bên trong LogReg/SVM chia fold theo dòng (kể cả Iranian) | Rất nhỏ với mô hình tuyến tính | Model deploy (RF) đã chia theo nhóm |
 | Không hiệu chỉnh so sánh nhiều lần | Một trong nhiều p-value nhỏ có thể do ngẫu nhiên | Kết luận dựa trên hiệu ứng lớn, nhất quán qua 10 seed |
 | SHAP giải thích điểm rừng trước calibration | Đóng góp không cộng ra đúng xác suất hiển thị; thứ tự/chiều của yếu tố nhỏ có thể khác nếu giải thích trên xác suất đã calibrate | Thứ hạng rủi ro giữa các khách giữ nguyên; giải thích là của điểm rừng |
 | So sánh F1 / McNemar ở ngưỡng 0.5 | RF (class_weight, chưa calibrate) và LogReg (đã calibrate) có ngưỡng 0.5 mang ý nghĩa khác nhau | Chất lượng mô hình so bằng AP/ROC-AUC (không phụ thuộc ngưỡng); F1@0.5 chỉ là so điểm vận hành |
-| OOB và CV tính trên cùng tập train đã dùng để tune | Cả hai hơi lạc quan (CV nhiều hơn); trên Iranian OOB còn lạc quan thêm vì bản trùng | Chỉ tập test là độc lập với việc tune; báo cáo test và trung bình 10 seed |
+| OOB và CV tính trên cùng tập train đã dùng để tune | Cả hai hơi lạc quan (CV nhiều hơn); trên Iranian OOB có thể lạc quan thêm vì bản trùng (số đo chưa cho thấy: OOB 0.889, CV 0.891, test 0.912) | Chỉ tập test là độc lập với việc tune; báo cáo test và trung bình 10 seed |
 | Nguồn gốc bộ Orange (bản mirror) | Khó trích dẫn | Quỳnh Anh đang tìm nguồn gốc/license |
 
 ---
@@ -390,13 +467,14 @@ _(điền sau lượt chạy chính thức)_
 | Ngày | Việc | Cách làm / tiêu chí xong |
 |---|---|---|
 | 25–26/11 | Đẩy nhánh, mở PR `namkhanh/rf-main-model` → `main` | Các bạn cần khung trước 27/11; báo nhóm đọc `docs/huong-dan-ky-thuat.md` và tài liệu này |
-| 25–27/11 | Quản trị repo | Mời collaborator; bật branch protection cho `main` (bắt buộc PR, 1 approval); chia sẻ 3 file CSV qua Drive nhóm |
+| 25/11 | Quản trị repo | Mời collaborator; bật branch protection cho `main` (bắt buộc PR, 1 approval); chia sẻ 3 file CSV qua Drive nhóm |
 | trước 28/11 | Buổi hướng dẫn kỹ thuật 30–45 phút | Theo `docs/huong-dan-ky-thuat.md`; kết thúc khi cả 5 người chạy `reproduce --quick` báo `completed` |
+| 25–29/11 | Thùy Linh xin ý kiến giảng viên (D1 bộ dữ liệu chính, D3 chi phí, D6 định dạng) | Điền cột "Kết quả" trong `PLAN.md` mục 3 |
 | 29/11 | Review PR `download_data.py` (Quỳnh Anh) | Checklist 7.5; hash khớp `PLAN.md` |
-| 01/12 | Review PR DT/KNN/SVM (Thùy Linh) | Mục 7.1; chạy `compare_datasets --dataset all --tune` |
+| 25/11–01/12 | Khánh chạy DT/KNN/SVM trên 3 dataset | Mục 7.1; `compare_datasets --dataset all --tune` rồi `model_stability` |
 | 04/12 | Nhận `COST_*` (Nhật Linh) | Chạy lại `python -m src.train --tune --with-shap`; báo Hải Anh ngưỡng mới |
 | 05/12 | Review PR `policy_analysis.py` | `reproduce --quick` phải chạy luôn bước này; snapshot có §10 |
-| **06/12** | **Đóng băng số liệu** | Trên `main` sạch: `python -m src.reproduce` (~40 phút) → commit `reports/results_snapshot.md`, `models/*.json`, `figures/rf/`, `figures/dataset_runs/` → `git tag v1.0-results && git push origin v1.0-results` → báo nhóm |
+| **06/12** | **Đóng băng số liệu** | Trên `main` sạch, máy không chạy việc khác: `python -m src.reproduce` (~40 phút; lượt 25/11 mất 3 giờ 27 phút vì máy bận) → commit `reports/results_snapshot.md`, `models/*.json`, `figures/rf/`, `figures/dataset_runs/` → `git tag v1.0-results && git push origin v1.0-results` → báo nhóm |
 | 07–13/12 | Viết 4.1, 4.2, 5.2 bằng số của tag; bàn giao | Thùy Linh: cách đọc `stability_summary.csv`/`stat_tests.csv`; Nhật Linh: reliability diagram, `fit_deployed_rf` |
 | trước 18/12 | Đối chiếu số liệu | Mọi số trong `docs/report/` và slide khớp snapshot của tag; gửi danh sách chỗ lệch |
 | tuần 4 | Thử tái lập trên máy sạch | Một bạn clone mới → đặt dữ liệu → `python -m src.reproduce` → so snapshot với tag |
@@ -416,7 +494,7 @@ cho một ước lượng gần như cross-validation miễn phí.
 
 **AP vs ROC-AUC.** ROC-AUC đo khả năng xếp hạng trên cả hai lớp, ít nhạy với mất cân bằng; AP (diện
 tích dưới đường Precision–Recall) tập trung vào lớp thiểu số, mức "đoán bừa" bằng tỉ lệ churn. Với
-churn 15–27%, AP phân biệt mô hình tốt hơn.
+churn 14.5–26.5%, AP phân biệt mô hình tốt hơn.
 
 **Calibration.** Mô hình đã calibrate thì "xác suất 0.3" nghĩa là khoảng 30% khách như vậy rời đi.
 RF của nhóm lệch chủ yếu do `class_weight` (học như thể hai lớp cân bằng, đẩy xác suất churn lên) và
@@ -425,7 +503,8 @@ do lấy trung bình nhiều cây. Platt: khớp $1/(1+e^{Af+B})$ trên dự đo
 `ensemble=False`: dùng dự đoán CV để khớp sigmoid, rồi huấn luyện lại một rừng trên toàn bộ train.
 
 **Ngưỡng theo chi phí.** Với FN đắt gấp 10 lần FP, ngưỡng tối ưu lý thuyết cho xác suất đã calibrate
-là $c_{FP}/(c_{FP}+c_{FN}) = 50/550 \approx 0.09$; ngưỡng thực nghiệm trên validation nằm gần đó.
+là $c_{FP}/(c_{FP}+c_{FN}) = 50/550 \approx 0.09$; ngưỡng chọn trên validation là 0.054, thấp hơn khá nhiều
+(tập validation nhỏ và xác suất sau calibrate chưa hoàn hảo).
 
 **class_weight vs SMOTE.** `class_weight` tăng trọng số lỗi của lớp churn khi chọn phép chia, không
 tạo dữ liệu; SMOTE sinh mẫu tổng hợp nằm giữa các khách churn gần nhau. SMOTE phải nằm trong pipeline
@@ -437,8 +516,8 @@ trị Shapley của từng biến cho từng dự đoán; có dấu; là tương
 
 **Kiểm định.** McNemar: trên cùng một tập test, đếm số khách A đúng/B sai (b) và A sai/B đúng (c);
 kiểm định nhị thức trên b và c. Wilcoxon: xếp hạng các hiệu số giữa hai mô hình qua 10 seed. t có
-hiệu chỉnh: như t ghép cặp nhưng phương sai nhân thêm $n_{test}/n_{train}$ vì các tập train chồng
-nhau. p nhỏ nghĩa là khác biệt khó do ngẫu nhiên chia dữ liệu; **không** cho biết khác biệt lớn hay
+hiệu chỉnh: như t ghép cặp nhưng hệ số của phương sai là $1/k + n_{test}/n_{train}$ thay vì $1/k$ (với 10
+lần chia, phương sai ước lượng lớn gấp khoảng 3 lần) vì các tập train chồng nhau. p nhỏ nghĩa là khác biệt khó do ngẫu nhiên chia dữ liệu; **không** cho biết khác biệt lớn hay
 có ý nghĩa thực tế, và không tự sửa cho việc so sánh nhiều lần.
 
 **Rò rỉ dữ liệu.** Thông tin của tập test lọt vào lúc huấn luyện: fit scaler/imputer/SMOTE trên toàn
@@ -452,7 +531,7 @@ bộ dữ liệu, chọn ngưỡng/tham số trên test, bản sao của cùng k
 ```bash
 python -m pytest -q                                   # toàn bộ test
 python -m src.reproduce --quick                       # kiểm tra nhanh, không đổi file trong git
-python -m src.reproduce                               # chạy chính thức (~40 phút)
+python -m src.reproduce                               # chạy chính thức (~40 phút khi máy rảnh)
 python -m src.train --tune --with-shap                # chỉ model deploy IBM
 python -m src.compare_datasets --dataset all --tune   # benchmark 3 dataset + tuned_params.json
 python -m src.compare_datasets --dataset ibm --models RandomForest LogReg

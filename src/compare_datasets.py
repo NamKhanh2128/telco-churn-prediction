@@ -406,7 +406,7 @@ def _build_model(name, numeric_features, categorical_features, is_ibm=False):
     elif name == 'Dummy':
         classifier = DummyClassifier(strategy='most_frequent')
         scale_numeric = False
-    # ── Comparison models (Thùy Linh): DecisionTree, KNN, SVM_Linear, SVM_RBF ──
+    # ── Comparison models (DT, KNN, SVM): DecisionTree, KNN, SVM_Linear, SVM_RBF ──
     # Add one `elif name == '...':` branch per model here, using the DEFAULT_*_PARAMS
     # of src.config; wrap SVMs in _calibrated(...) as src.train does.
     else:

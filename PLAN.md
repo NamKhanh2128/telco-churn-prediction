@@ -22,7 +22,7 @@ Plan chi tiết của từng người nằm ở file `plans/<tên>.md` **trên b
 | **Nguyễn Đức Nam Khánh** (trưởng nhóm) | Điều phối; Random Forest (mô hình chính) và các thí nghiệm AI: khung benchmark, ablation, độ ổn định, calibration, giải thích mô hình; tái lập kết quả | `namkhanh/rf-main-model` | `plans/namkhanh.md` |
 | **Lê Hải Anh** | Hệ thống: môi trường, CI, API, giao diện, deploy; ráp báo cáo, slide và câu hỏi bảo vệ | `haianh/system-deploy` | `plans/haianh.md` |
 | **Quách Nguyễn Quỳnh Anh** | Dữ liệu: script tải & kiểm tra dữ liệu, EDA, nguồn gốc dữ liệu; tổng quan tài liệu | `quynhanh/data-eda` | `plans/quynhanh.md` |
-| **Mai Thùy Linh** | Các mô hình so sánh DT/KNN/SVM: cài đặt trong benchmark, siêu tham số, phân tích và trình bày kết quả | `thuylinh/model-comparison` | `plans/thuylinh.md` |
+| **Mai Thùy Linh** | Các mô hình so sánh DT/KNN/SVM: siêu tham số, kiểm thử, phân tích và trình bày kết quả; xin ý kiến giảng viên (D1–D6) | `thuylinh/model-comparison` | `plans/thuylinh.md` |
 | **Nguyễn Nhật Linh** | Đánh giá & kinh doanh: code phân tích ngưỡng/chi phí, chính sách quyết định, kiểm tra công bằng | `nhatlinh/evaluation-business` | `plans/nhatlinh.md` |
 
 Xem plan của mình: `git checkout <branch>` rồi mở `plans/<tên>.md`, hoặc chọn branch trên GitHub.
@@ -61,7 +61,7 @@ Xem plan của mình: `git checkout <branch>` rồi mở `plans/<tên>.md`, ho�
 
 ## 3. Các quyết định cần chốt (gate của cả dự án)
 
-Hải Anh mang bảng này đi gặp giảng viên **trước 29/11**, rồi điền cột "Kết quả" bằng một PR nhỏ vào `main`.
+Mai Thùy Linh mang bảng này đi gặp giảng viên **trước 29/11**, rồi điền cột "Kết quả" bằng một PR nhỏ vào `main`.
 
 | # | Quyết định | Phương án | Đề xuất bởi | Hạn | Kết quả |
 |---|---|---|---|---|---|
@@ -101,8 +101,8 @@ Hải Anh (D1, D6) ─┬─► Nam Khánh: phân tích RF trên dataset chính
                   ├─► Thùy Linh: bảng so sánh chính trên dataset chính
                   └─► Hải Anh: schema API/giao diện (nếu đổi dataset)
 Quỳnh Anh (src/download_data.py, 29/11) ─► cả nhóm: tự tải đúng phiên bản dữ liệu
-Nam Khánh (khung benchmark, 27/11) ─► Thùy Linh: thêm DT/KNN/SVM vào benchmark (01/12)
-Thùy Linh (DT/KNN/SVM, 01/12) ─► Nam Khánh: độ ổn định 10 seed + kiểm định ─► Thùy Linh: viết mục 5.1
+Nam Khánh (chạy DT/KNN/SVM trên 3 dataset, 01/12) ─► Thùy Linh: chỉnh lưới tham số (04/12), phân tích
+Nam Khánh (độ ổn định 10 seed + kiểm định cho cả 6 mô hình) ─► Thùy Linh: viết mục 4.3, 5.1, 5.4
 Nhật Linh (D3 → COST_*, src/policy_analysis.py) ─► Nam Khánh: nối vào src/reproduce.py trước tag
 Nhật Linh (D4) ─► Hải Anh: chính sách quyết định trong API
 Code thí nghiệm merge trước 05/12 ─► Nam Khánh: tag v1.0-results ─┬─► tất cả: số liệu vào báo cáo/slide
@@ -155,8 +155,8 @@ snapshot tag `v1.0-results`, gửi danh sách chỗ lệch cho người viết s
 | Vùng | Chủ sở hữu | Người khác muốn sửa thì… |
 |---|---|---|
 | `src/download_data.py`, `tests/test_download.py`, `notebooks/01_*`, `figures/eda/`, `data/raw/**/README.md`, `docs/data_dictionary.md` | Quỳnh Anh | nhắn Quỳnh Anh |
-| Khung thí nghiệm & mô hình chính trong `src/` (`train.py`, `compare_datasets.py` trừ phần DT/KNN/SVM, `preprocessing.py`, `data_loader.py`, `explain.py`, `optimize_threshold.py`, `evaluate.py`, `iranian_audit.py`, `ablation.py`, `model_stability.py`, `reproduce.py`, `export_results.py`); `DEFAULT_RF_PARAMS`/`RF_PARAM_GRID` trong `src/config.py`; `tests/test_pipeline.py`; `notebooks/02_*`, `figures/rf/` | Nam Khánh | nhắn Nam Khánh |
-| Phần DT/KNN/SVM trong `_build_model` (`src/compare_datasets.py`); `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`; `tests/test_models.py`; `notebooks/03_*`, `figures/models/`, `docs/report/references.md` | Thùy Linh | nhắn Thùy Linh |
+| Khung thí nghiệm & mô hình chính trong `src/` (`train.py`, `compare_datasets.py` gồm cả nhánh DT/KNN/SVM, `preprocessing.py`, `data_loader.py`, `explain.py`, `optimize_threshold.py`, `evaluate.py`, `iranian_audit.py`, `ablation.py`, `model_stability.py`, `reproduce.py`, `export_results.py`); `DEFAULT_RF_PARAMS`/`RF_PARAM_GRID` trong `src/config.py`; `tests/test_pipeline.py`; `notebooks/02_*`, `figures/rf/` | Nam Khánh | nhắn Nam Khánh |
+| `DEFAULT_*_PARAMS`/`*_PARAM_GRID` của DT, KNN, SVM trong `src/config.py`; `tests/test_models.py`; `notebooks/03_*`, `figures/models/`, `docs/report/references.md` | Thùy Linh | nhắn Thùy Linh |
 | `src/policy_analysis.py`, `tests/test_policy.py`, `COST_*` trong `src/config.py`, `notebooks/04_*`, `figures/policy/` | Nhật Linh | nhắn Nhật Linh |
 | `api/`, `frontend/`, `Dockerfile`, `docker-compose.yml`, `requirements*.txt`, `tests/test_api.py`, `.github/`, `README.md`, `.gitignore`, `docs/slides/`, `docs/defense_qa.md` | Hải Anh | nhắn Hải Anh |
 | `PLAN.md`, `mustdo.md` | Hải Anh | PR nhỏ, Hải Anh duyệt |

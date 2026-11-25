@@ -1,6 +1,6 @@
 # Slide phần Random Forest — Nam Khánh (nội dung nháp)
 
-> Nội dung để ráp vào khung slide của Hải Anh. Số liệu theo snapshot commit `341ea0a`; cập nhật theo
+> Nội dung để ráp vào khung slide của Hải Anh. Số liệu theo snapshot commit `89fa839`; cập nhật theo
 > tag `v1.0-results`. Mỗi slide kèm ghi chú thuyết trình (~1 phút).
 
 ---
@@ -15,9 +15,10 @@
 
 **Hình:** `figures/rf/validation_curve_ibm.png`
 
-**Ghi chú thuyết trình:** Thêm cây không làm overfit — đường cross-validation đi ngang sau 300 cây.
-Độ sâu thì khác: trên IBM, cây quá sâu học thuộc dữ liệu train (đường đỏ tăng, đường xanh giảm), nên
-giới hạn ở độ sâu khoảng 10 là tốt nhất.
+**Ghi chú thuyết trình:** Thêm cây không làm overfit — đường cross-validation đi ngang từ khoảng 200 cây.
+Về độ sâu, trên IBM từ độ sâu 8 trở lên điểm cross-validation gần như không đổi (chênh dưới 0.004) trong
+khi điểm trên train tiếp tục tăng: cây sâu hơn chỉ học thuộc dữ liệu train. Độ sâu 10 nằm trong vùng phẳng
+đó. Trên Iranian và Orange thì ngược lại, cây càng sâu càng tốt.
 
 ---
 
@@ -27,16 +28,17 @@ giới hạn ở độ sâu khoảng 10 là tốt nhất.
 
 | | AP — RF | AP — LogReg | Kết luận |
 |---|---:|---:|---|
-| IBM | 0.665 | 0.668 | Ngang nhau (p = 0.19) |
-| Orange | **0.835** | 0.465 | RF vượt trội (p = 0.002) |
-| Iranian | **0.912** | 0.769 | RF vượt trội (p = 0.002) |
+| IBM | 0.666 | 0.668 | Ngang nhau (p = 0.60) |
+| Orange | **0.835** | 0.465 | RF vượt trội (p < 0.001) |
+| Iranian | **0.912** | 0.768 | RF vượt trội (p < 0.001) |
 
 - RF mạnh trên dữ liệu hành vi định lượng (khiếu nại, cuộc gọi CSKH, tần suất dùng)
-- IBM nhiều biến phân loại → mô hình tuyến tính đã đủ tốt; khác biệt nằm ở ngưỡng quyết định
+- IBM nhiều biến phân loại → mô hình tuyến tính đã làm khá tốt
 
 **Ghi chú thuyết trình:** Mỗi con số là trung bình của 10 lần chia dữ liệu khác nhau, không phải một lần
-may mắn. p = 0.002 nghĩa là RF thắng cả 10 lần. Trên IBM, nhóm trung thực ghi nhận RF không hơn LogReg
-về xếp hạng.
+may mắn. Trên Orange và Iranian, RF thắng ở cả 10 lần chia. p-value tính bằng kiểm định t có hiệu chỉnh
+(Nadeau và Bengio), vì 10 tập train chồng lên nhau nên kiểm định t thông thường quá lạc quan. Trên IBM,
+nhóm ghi nhận trung thực là RF không hơn LogReg về khả năng xếp hạng.
 
 ---
 
@@ -60,9 +62,12 @@ hưởng hiệu năng.
 
 ## Slide dự phòng — Calibration và ablation (dùng khi hội đồng hỏi)
 
-- Calibration: ECE giảm từ 0.121 xuống 0.031; deploy 1 rừng + sigmoid, model 91 MB → 34 MB
+- Calibration: ECE giảm từ 0.121 xuống 0.029; RF chưa calibrate dự đoán trung bình 0.386 trong khi tỉ lệ
+  churn thật là 0.265 (do `class_weight`)
+- Deploy 1 rừng + sigmoid: chất lượng như 5 rừng, model 91 MB → 17 MB
 - A1: bỏ `TotalCharges` gần như không mất gì (thông tin trùng `tenure × MonthlyCharges`)
-- A2: SMOTE tăng recall ở ngưỡng 0.5 nhưng giảm AP; ngưỡng được chọn theo chi phí nên không dùng SMOTE
-- A3: chuẩn hóa không ảnh hưởng tới cây (khác biệt < 0.002)
+- A2: `class_weight` và SMOTE đều không làm AP tốt hơn, chỉ dời điểm vận hành ở ngưỡng 0.5; ngưỡng được
+  chọn theo chi phí sau khi calibrate
+- A3: chuẩn hóa không ảnh hưởng tới cây (F1 và AP khác nhau ≤ 0.0012)
 
 **Hình:** `figures/rf/reliability_ibm.png`

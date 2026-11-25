@@ -33,7 +33,7 @@ git theo dõi, nên chạy thử bao nhiêu lần cũng được. Snapshot của
 | File | Vai trò | Phụ trách |
 |---|---|---|
 | `src/config.py` | Đường dẫn, seed, tỉ lệ chia 70/15/15, lưới tham số, chi phí `COST_*`, `CALIBRATION_ENSEMBLE` | theo phần (PLAN.md mục 6) |
-| `src/compare_datasets.py` | Benchmark 3 dataset: `load_dataset`, `split_data`, `BENCHMARK_MODELS`, `_build_model`, `MODEL_PARAM_GRIDS`, `run_dataset`, `fit_deployed_rf` | Nam Khánh (phần DT/KNN/SVM: Thùy Linh) |
+| `src/compare_datasets.py` | Benchmark 3 dataset: `load_dataset`, `split_data`, `BENCHMARK_MODELS`, `_build_model`, `MODEL_PARAM_GRIDS`, `run_dataset`, `fit_deployed_rf` | Nam Khánh (lưới DT/KNN/SVM: Thùy Linh) |
 | `models/tuned_params.json` | Tham số tốt nhất của lần tune chính thức (có trong git), mọi phân tích đọc từ đây | sinh tự động bởi `--tune` |
 | `src/preprocessing.py` | `TelcoFeatureEngineer`, `build_preprocessor`, `build_model_pipeline` | Nam Khánh |
 | `src/train.py` | IBM: 7 mô hình + RF đã calibrate để deploy + SHAP | Nam Khánh |
@@ -86,10 +86,13 @@ git restore models figures/rf figures/dataset_runs reports/results_snapshot.md
 
 ## 5. Bắt đầu phần code của bạn
 
-### Thùy Linh — thêm DT/KNN/SVM vào benchmark (`src/compare_datasets.py`)
+### Thêm DT/KNN/SVM vào benchmark (`src/compare_datasets.py`)
+
+Theo phân công 25/11, Khánh chạy DT/KNN/SVM trên 3 dataset; Thùy Linh phụ trách lưới tham số
+(`*_PARAM_GRID` trong `src/config.py`), `tests/test_models.py`, notebook 03 và phần phân tích.
 
 1. Thêm tên mô hình vào `BENCHMARK_MODELS`.
-2. Thêm nhánh trong `_build_model`, ngay chỗ có chú thích *"Comparison models (Thùy Linh)"*
+2. Thêm nhánh trong `_build_model`, ngay chỗ có chú thích *"Comparison models (DT, KNN, SVM)"*
    (lấy `src/train.py` bước 4 làm mẫu; nhớ import lớp mô hình và `DEFAULT_*_PARAMS`):
 
 ```python

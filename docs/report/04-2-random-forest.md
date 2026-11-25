@@ -62,22 +62,29 @@ biến gốc để kết quả dễ đọc (`src/explain.py`).
 
 `class_weight="balanced_subsample"` tính lại trọng số lớp trên **từng mẫu bootstrap**, để lớp churn
 (thiểu số) không bị lấn át khi cây chọn phép chia. Tuning dùng `RandomizedSearchCV` (30 tổ hợp, 5-fold
-CV, tiêu chí AP — mục 4.1.4).
+CV, tiêu chí AP — mục 4.1.4). Kết quả tune (`models/tuned_params.json`): IBM 500 cây, độ sâu tối đa 10,
+`min_samples_leaf` = 5, `max_features` = `log2`; Iranian 200 cây, không giới hạn độ sâu, `log2`; Orange
+500 cây, không giới hạn độ sâu, `sqrt`.
 
 ## 4.2.6. Hiệu chỉnh xác suất (calibration)
 
-Xác suất của Random Forest thường **không phản ánh đúng tần suất thật**: việc lấy trung bình nhiều cây
-kéo dự đoán ra xa 0 và 1 (Niculescu-Mizil & Caruana, 2005). Điều này không ảnh hưởng tới thứ hạng
-(ROC-AUC, AP) nhưng ảnh hưởng tới **chọn ngưỡng theo chi phí**, vốn giả định "xác suất 0.3 nghĩa là
-30% khách như vậy rời đi".
+Xác suất của Random Forest thường **không phản ánh đúng tần suất thật**, vì hai lý do. Thứ nhất,
+`class_weight="balanced_subsample"` khiến mỗi cây học như thể hai lớp cân bằng, nên xác suất churn bị đẩy
+lên: trên IBM, xác suất trung bình mô hình dự đoán là 0.386 trong khi tỉ lệ churn thật của tập test là
+0.265 (snapshot §8) — đây là nguyên nhân chính. Thứ hai, việc lấy trung bình nhiều cây kéo dự đoán ra xa 0
+và 1 (Niculescu-Mizil & Caruana, 2005). Điều này không ảnh hưởng tới thứ hạng (ROC-AUC, AP) nhưng ảnh
+hưởng tới **chọn ngưỡng theo chi phí**, vốn giả định "xác suất 0.3 nghĩa là 30% khách như vậy rời đi".
 
 - **Platt scaling** (sigmoid; Platt, 1999): khớp $\hat p = 1/(1 + e^{A f + B})$ trên dự đoán
   cross-validation; chỉ 2 tham số nên ổn định với dữ liệu vừa và nhỏ.
 - **Isotonic regression:** hàm đơn điệu tùy ý, linh hoạt hơn nhưng dễ overfit khi ít dữ liệu.
 
-Nhóm dùng Platt scaling với 5-fold CV trên tập train. Độ tin cậy của xác suất đo bằng **Brier score**
-và **ECE** (expected calibration error), minh họa bằng reliability diagram (`figures/rf/`). So sánh
-sigmoid/isotonic và `ensemble=True/False` ở snapshot §8.
+Nhóm dùng Platt scaling với 5-fold CV trên tập train (Iranian: fold chia theo nhóm). Với `ensemble=False`,
+dự đoán cross-validation của 5 fold được dùng để khớp một hàm sigmoid, sau đó rừng được huấn luyện lại
+trên toàn bộ tập train; model deploy chỉ chứa một rừng và một hàm sigmoid. Vì sigmoid là hàm đơn điệu,
+thứ hạng khách hàng (ROC-AUC, AP) giữ nguyên. Độ tin cậy của xác suất đo bằng **Brier score** và **ECE**
+(expected calibration error), minh họa bằng reliability diagram (`figures/rf/`). So sánh sigmoid/isotonic
+và `ensemble=True/False` ở snapshot §8.
 
 ## 4.2.7. Vì sao chọn Random Forest làm phương pháp chính
 

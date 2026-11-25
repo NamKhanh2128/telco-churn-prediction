@@ -1,5 +1,5 @@
 # Trained models will be saved here after running:
-#   python -m src.train                              (deployed IBM model)
+#   python -m src.train --tune --with-shap           (deployed IBM model)
 #   python -m src.compare_datasets --dataset all --tune   (per-dataset runs, tuned parameters)
 #
 # Files:
