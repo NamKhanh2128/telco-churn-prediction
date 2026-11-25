@@ -7,16 +7,22 @@ Reads only generated artifacts under results/ (which are git-ignored) and writes
 reports/results_snapshot.md (which is tracked). README, mustdo and the written
 report should quote numbers from this snapshot, never type them by hand.
 
-If the last `src.reproduce` run was `--quick`, the snapshot goes to the
-git-ignored results/results_snapshot_quick.md instead, so smoke runs on a
-member's machine never overwrite the official numbers.
+If the last `src.reproduce` run was `--quick`, the snapshot goes to
+results_snapshot_quick.md inside the quick sandbox (results/quick/results/,
+git-ignored) instead, so smoke runs on a member's machine never overwrite the
+official numbers.
+
+Other members' modules can add a section without editing this file: write a
+Markdown fragment to results/<name>/snapshot.md (start it with a "### "
+heading). Every fragment found is appended under "10. Additional analyses",
+in alphabetical order of <name>.
 """
 
 import json
 
 import pandas as pd
 
-from src.config import COST_FN, COST_FP, PROJECT_ROOT, RESULTS_DIR
+from src.config import COST_FN, COST_FP, PROJECT_ROOT, RESULTS_DIR, SANDBOXED
 
 OUT_PATH = PROJECT_ROOT / 'reports' / 'results_snapshot.md'
 QUICK_OUT_PATH = RESULTS_DIR / 'results_snapshot_quick.md'
@@ -116,6 +122,22 @@ def _read_optional(path):
     return pd.read_csv(path) if path.exists() else None
 
 
+def _provenance_lines(log):
+    """Data hashes and library versions recorded by src.reproduce."""
+    lines = []
+    hashes = log.get('dataset_sha256') or {}
+    if hashes:
+        lines.append('- Data SHA-256: ' + ', '.join(
+            f"{name} `{(digest or 'missing')[:12]}`" for name, digest in hashes.items()
+        ) + ' (first 12 hex digits; full values in `results/reproduce_log.json`)')
+    versions = log.get('versions') or {}
+    if versions:
+        lines.append('- Versions: ' + ', '.join(
+            f'{name} {version}' for name, version in versions.items() if version
+        ))
+    return lines
+
+
 def _mean_std(mean, std):
     return f'{mean:.4f} ± {std:.4f}'
 
@@ -159,12 +181,18 @@ def _ablation_section():
             _mean_std(m, s)
             for m, s in zip(table['average_precision_mean'], table['average_precision_std'])
         ],
-        'Seeds': table['n_seeds'],
     })
+    if 'ece_mean' in table:
+        view['ECE'] = table['ece_mean']
+    if 'val_average_precision_mean' in table:
+        view['Val AP'] = table['val_average_precision_mean']
+    view['Seeds'] = table['n_seeds']
     return [
-        '## 6. Ablation A2 (imbalance handling) and A3 (scaling) — RF, default parameters',
+        '## 6. Ablation A2 (imbalance handling) and A3 (scaling) — RF, tuned parameters',
         '',
-        'Mean ± std over seeds, test set at threshold 0.5 (`src.ablation`).',
+        'Mean ± std over seeds, test set at threshold 0.5 (`src.ablation`); every variant '
+        'uses the tuned forest of the main benchmark and changes one factor. '
+        '`Val AP` is the validation-split AP that design choices are read from.',
         '',
         _md_table(view),
         '',
@@ -184,6 +212,7 @@ def _stability_models_section():
         'average_precision': 'AP',
     }
     summary = summary[summary['metric'].isin(metrics)].copy()
+    n_seeds = int(summary['count'].max()) if 'count' in summary and not summary.empty else 0
     summary['cell'] = [_mean_std(m, s) for m, s in zip(summary['mean'], summary['std'])]
     wide = summary.pivot_table(
         index=['dataset', 'model'], columns='metric', values='cell', aggfunc='first', sort=False,
@@ -192,7 +221,7 @@ def _stability_models_section():
         columns={'dataset': 'Dataset', 'model': 'Model', **metrics},
     )
     parts = [
-        '## 7. Stability over 10 seeds — all models (test set, threshold 0.5)',
+        f'## 7. Stability over {n_seeds} seeds — all models (test set, threshold 0.5)',
         '',
         'Mean ± std over repeated 70/15/15 splits with fixed tuned parameters '
         '(`src.model_stability`).',
@@ -205,6 +234,7 @@ def _stability_models_section():
         view = pd.DataFrame({
             'Dataset': tests['dataset'],
             'Test': tests['test'],
+            'Scope': tests['scope'] if 'scope' in tests else '',
             'RF': tests['rf_mean'],
             'Rival': tests['rival'],
             'Rival score': tests['rival_mean'],
@@ -213,8 +243,16 @@ def _stability_models_section():
             'n': tests['n_pairs'],
         })
         parts += [
-            'RandomForest vs the strongest other model (two-sided, not corrected for '
-            'multiple comparisons; Wilcoxon over seeds, McNemar on the seed-42 test set):',
+            'RandomForest vs the strongest other model, two-sided, not corrected for '
+            'multiple comparisons. `corrected_t` = Nadeau–Bengio corrected resampled t-test '
+            '(accounts for overlapping training sets; the one to cite), `wilcoxon` = signed-rank '
+            'test over the same seeds (ignores the overlap; smallest possible p with 10 pairs '
+            'is 0.002), `mcnemar` = exact test on the seed-42 test set. Hyper-parameters were '
+            'tuned once on the seed-42 training split and reused for every seed. `Scope`: AP and '
+            'ROC-AUC compare how well the models rank customers (model quality); F1 and McNemar '
+            'use threshold 0.5, which is a different operating point for the uncalibrated, '
+            'class-weighted RF than for the Platt-calibrated rival, so those rows compare '
+            'operating points, not models.',
             '',
             _md_table(view.astype(object).where(view.notna(), None)),
             '',
@@ -241,13 +279,22 @@ def _calibration_section():
         'average_precision': 'AP',
         'brier_score': 'Brier',
         'ece': 'ECE',
+        'mean_proba': 'Mean p',
+        'test_churn_rate': 'Churn rate',
+        'val_average_precision': 'Val AP',
+        'val_brier_score': 'Val Brier',
         'size_mb': 'Size MB',
         'size_mb_compressed': 'Size MB (compressed)',
     }
+    columns = {key: label for key, label in columns.items() if key in table}
     return [
-        '## 8. Calibration of the deployed RF — quality vs size (test set)',
+        '## 8. Calibration of the deployed RF — quality vs size',
         '',
-        'From `src.calibration_analysis`; reliability diagrams in `figures/rf/`.',
+        'From `src.calibration_analysis`; reliability diagrams in `figures/rf/`. '
+        'AP / Brier / ECE are on the test set; `Mean p` is the average predicted churn '
+        'probability next to the real churn rate of the test set. The choice of the deployed '
+        'variant is read from the validation columns (`Val AP`, `Val Brier`). Sizes are the '
+        'serialized model without / with joblib compression.',
         '',
         _md_table(table[list(columns)].rename(columns=columns)),
         '',
@@ -273,7 +320,9 @@ def _rf_analysis_section():
         'n_estimators': table['n_estimators'].map(as_label),
         'max_depth': table['max_depth'].map(as_label),
         'OOB AP': table['oob_ap'],
-        'CV AP': [_mean_std(m, s) for m, s in zip(table['cv_ap_mean'], table['cv_ap_std'])],
+        'CV AP (tuning folds)': [
+            _mean_std(m, s) for m, s in zip(table['cv_ap_mean'], table['cv_ap_std'])
+        ],
         'Test AP': table['test_ap'],
         'ρ(MDI, perm.)': table['spearman_mdi_permutation'],
         'ρ(MDI, SHAP)': table['spearman_mdi_shap'],
@@ -289,7 +338,10 @@ def _rf_analysis_section():
         '## 9. Random Forest analysis — OOB vs CV vs test, importance agreement',
         '',
         'From `src.rf_analysis` (tuned RF; ρ = Spearman rank correlation between '
-        'importance methods). Figures in `figures/rf/`.',
+        'importance methods). The CV score reuses the folds that picked the parameters, '
+        'so it is optimistic; OOB is computed on the same training rows, so it shares part '
+        'of that optimism; only the test split is independent of the tuning. '
+        'Figures in `figures/rf/`.',
         '',
         _md_table(scores),
         '',
@@ -298,11 +350,29 @@ def _rf_analysis_section():
     ]
 
 
+def _fragment_section():
+    """Markdown fragments written by other modules (results/<name>/snapshot.md)."""
+    fragments = sorted(RESULTS_DIR.glob('*/snapshot.md'))
+    if not fragments:
+        return []
+    parts = ['## 10. Additional analyses', '']
+    for path in fragments:
+        parts += [
+            f'From `results/{path.parent.name}/snapshot.md`.',
+            '',
+            path.read_text(encoding='utf-8').strip(),
+            '',
+        ]
+    return parts
+
+
 def main(out_path=None):
     log_path = RESULTS_DIR / 'reproduce_log.json'
     log = _load_json(log_path) if log_path.exists() else {}
     if out_path is None:
-        out_path = QUICK_OUT_PATH if log.get('mode') == 'quick' else OUT_PATH
+        # A quick run, or any run inside a CHURN_OUTPUT_ROOT sandbox, never
+        # writes the tracked official snapshot.
+        out_path = QUICK_OUT_PATH if (log.get('mode') == 'quick' or SANDBOXED) else OUT_PATH
     ibm_meta = _load_json(RUNS_DIR / 'ibm' / 'metadata.json')
     split = ibm_meta['split']
 
@@ -318,6 +388,7 @@ def main(out_path=None):
         + (' (working tree had uncommitted changes)' if log.get('git_dirty') else ''),
         f"- IBM split: train {split['train']:,} / validation {split['validation']:,} / "
         f"test {split['test']:,} (seed {split['random_state']})",
+        *_provenance_lines(log),
         f'- Cost placeholders: FP = ${COST_FP}, FN = ${COST_FN} '
         '(NOT business-validated; savings below are illustrative only)',
         '',
@@ -354,6 +425,7 @@ def main(out_path=None):
     parts += _stability_models_section()
     parts += _calibration_section()
     parts += _rf_analysis_section()
+    parts += _fragment_section()
 
     out_path.parent.mkdir(parents=True, exist_ok=True)
     out_path.write_text('\n'.join(parts), encoding='utf-8')

@@ -19,9 +19,17 @@ A1 (TotalCharges) is `python -m src.compare_datasets --dataset ibm
 --keep-total-charges`; A4 (threshold 0.5 vs cost-optimal) lives in
 `src.policy_analysis`.
 
-Every variant uses the main 70/15/15 split (group-aware for Iranian), the
-default RF hyper-parameters (DEFAULT_RF_PARAMS) and is scored on the test
-split at threshold 0.5. Outputs:
+Every variant uses the 70/15/15 split of each seed (group-aware for
+Iranian) and the RF hyper-parameters tuned by the main benchmark
+(models/tuned_params.json; DEFAULT_RF_PARAMS if the benchmark was never tuned).
+Only the factor under study changes. The tuned forest matters: with shallow
+trees class_weight changes the leaves' votes a lot, with fully grown trees it
+barely does, so an ablation on default parameters would not describe the
+deployed model.
+
+Each variant is scored at threshold 0.5 on the validation split (val_* columns,
+what a design decision should be based on) and on the test split (reported
+numbers). Outputs:
     results/ablation/ablation_runs.csv     one row per dataset/variant/seed
     results/ablation/ablation_summary.csv  mean and std over seeds
 """
@@ -34,8 +42,13 @@ from imblearn.over_sampling import SMOTE
 from imblearn.pipeline import Pipeline as ImbPipeline
 from sklearn.ensemble import RandomForestClassifier
 
-from src.compare_datasets import _split_data, feature_lists, load_dataset
-from src.config import DEFAULT_RF_PARAMS, RESULTS_DIR
+from src.compare_datasets import (
+    _split_data,
+    build_benchmark_model,
+    feature_lists,
+    load_dataset,
+)
+from src.config import DEFAULT_RF_PARAMS, RESULTS_DIR, USE_FEATURE_ENGINEERING
 from src.evaluate import compute_metrics
 from src.preprocessing import TelcoFeatureEngineer, build_preprocessor
 
@@ -44,8 +57,10 @@ SEEDS = [42, 43, 44, 45, 46]
 DATASETS = ['ibm', 'orange', 'iranian']
 METRICS = [
     'accuracy', 'precision_churn', 'recall_churn', 'f1_churn',
-    'roc_auc', 'average_precision',
+    'roc_auc', 'average_precision', 'brier_score', 'ece',
 ]
+# Validation-split metrics kept for decisions (prefixed "val_" in the outputs).
+VALIDATION_METRICS = ['f1_churn', 'recall_churn', 'average_precision']
 
 # (experiment, variant label, class_weight, use SMOTE, scale numeric)
 VARIANTS = [
@@ -57,18 +72,26 @@ VARIANTS = [
 ]
 
 
+def tuned_rf_params(X, dataset_name):
+    """RF parameters of the main benchmark for one dataset (tuned when available)."""
+    pipeline = build_benchmark_model('RandomForest', X, dataset_name)
+    return pipeline.named_steps['classifier'].get_params()
+
+
 def build_variant(numeric_features, categorical_features, *, is_ibm,
-                  class_weight, use_smote, scale_numeric, seed):
+                  class_weight, use_smote, scale_numeric, seed, base_params=None):
     """RF pipeline for one ablation variant.
 
+    base_params: RF parameters shared by all variants (DEFAULT_RF_PARAMS if
+    None); the variant only changes class_weight, SMOTE and scaling.
     imblearn's Pipeline only resamples inside fit(); predict/predict_proba
-    never see SMOTE, so the test split is untouched.
+    never see SMOTE, so the validation and test splits are untouched.
     """
-    params = dict(DEFAULT_RF_PARAMS)
+    params = dict(DEFAULT_RF_PARAMS if base_params is None else base_params)
     params.update(class_weight=class_weight, random_state=seed)
     steps = []
     if is_ibm:
-        steps.append(('feature_engineer', TelcoFeatureEngineer(enabled=True)))
+        steps.append(('feature_engineer', TelcoFeatureEngineer(enabled=USE_FEATURE_ENGINEERING)))
     steps.append((
         'preprocessor',
         build_preprocessor(numeric_features, categorical_features, scale_numeric=scale_numeric),
@@ -83,9 +106,10 @@ def run_ablation(dataset_name, seeds):
     """Run every variant on one dataset for each seed; return result rows."""
     X, y, _, _ = load_dataset(dataset_name)
     numeric_features, categorical_features = feature_lists(X, dataset_name)
+    base_params = tuned_rf_params(X, dataset_name)
     rows = []
     for seed in seeds:
-        X_train, _, X_test, y_train, _, y_test = _split_data(
+        X_train, X_val, X_test, y_train, y_val, y_test = _split_data(
             X, y, dataset_name=dataset_name, seed=seed,
         )
         for experiment, label, class_weight, use_smote, scale_numeric in VARIANTS:
@@ -97,12 +121,15 @@ def run_ablation(dataset_name, seeds):
                 use_smote=use_smote,
                 scale_numeric=scale_numeric,
                 seed=seed,
+                base_params=base_params,
             )
             start = time.time()
             pipeline.fit(X_train, y_train)
             fit_seconds = time.time() - start
             proba = pipeline.predict_proba(X_test)[:, 1]
             metrics = compute_metrics(y_test, (proba >= 0.5).astype(int), proba)
+            val_proba = pipeline.predict_proba(X_val)[:, 1]
+            val_metrics = compute_metrics(y_val, (val_proba >= 0.5).astype(int), val_proba)
             row = {
                 'dataset': dataset_name,
                 'experiment': experiment,
@@ -111,6 +138,7 @@ def run_ablation(dataset_name, seeds):
                 'fit_seconds': round(fit_seconds, 2),
             }
             row.update({key: metrics[key] for key in METRICS})
+            row.update({f'val_{key}': val_metrics[key] for key in VALIDATION_METRICS})
             rows.append(row)
         print(f'[ablation] {dataset_name}: seed {seed} done')
     return rows
@@ -118,7 +146,8 @@ def run_ablation(dataset_name, seeds):
 
 def summarise(runs):
     """Mean and std over seeds for every dataset/experiment/variant."""
-    grouped = runs.groupby(['dataset', 'experiment', 'variant'], sort=False)[METRICS]
+    columns = METRICS + [f'val_{key}' for key in VALIDATION_METRICS if f'val_{key}' in runs]
+    grouped = runs.groupby(['dataset', 'experiment', 'variant'], sort=False)[columns]
     mean = grouped.mean().add_suffix('_mean')
     std = grouped.std(ddof=1).fillna(0.0).add_suffix('_std')
     summary = pd.concat([mean, std], axis=1).reset_index()
@@ -145,8 +174,9 @@ def main():
     summary.to_csv(ABLATION_DIR / 'ablation_summary.csv', index=False)
 
     columns = ['dataset', 'experiment', 'variant', 'f1_churn_mean', 'f1_churn_std',
-               'recall_churn_mean', 'precision_churn_mean', 'average_precision_mean']
-    print('\n=== ABLATION SUMMARY (test set, threshold 0.5, mean over seeds) ===')
+               'recall_churn_mean', 'precision_churn_mean', 'average_precision_mean',
+               'val_average_precision_mean']
+    print('\n=== ABLATION SUMMARY (threshold 0.5, mean over seeds; val_ = validation) ===')
     print(summary[columns].to_string(index=False))
     print(f'\nSaved {ABLATION_DIR}')
 

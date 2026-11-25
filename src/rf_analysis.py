@@ -6,18 +6,29 @@ Usage:
     python -m src.rf_analysis --quick            # fewer curve points / repeats
 
 For each dataset (main 70/15/15 split; RF with the tuned benchmark parameters
-from results/dataset_runs/<dataset>/model_metrics.json):
+from models/tuned_params.json):
 
 1. Validation curves — CV average precision on the training split while
    varying n_estimators and max_depth (other parameters fixed at the tuned
    values): shows where the chosen setting sits on the bias/variance curve.
-2. OOB score vs cross-validation vs test score.
+   Read differences against the fold spread (cv_std): steps smaller than
+   that are noise, not evidence for one setting.
+2. OOB score vs cross-validation vs test score. The CV score uses the same
+   folds that picked the parameters, so it is the (optimistic) tuning score.
+   OOB is computed on the same training rows that chose the parameters, so it
+   shares part of that optimism (less than CV); only the test split is
+   independent of the tuning.
 3. Feature importance three ways — MDI (impurity, on model inputs incl.
    engineered features), permutation importance (test split, raw inputs) and
    mean |SHAP| (model inputs) — plus Spearman rank agreement between them.
 4. Local SHAP explanations of three test customers: the most confident true
    positive (TP), the most clearly missed churner (FN) and the strongest false
-   alarm (FP), at threshold 0.5.
+   alarm (FP), at threshold 0.5 of the uncalibrated forest's score. SHAP
+   explains that score (column rf_score). The deployed model applies a
+   monotonic Platt calibration on top: it keeps the risk ranking of the
+   customers, but SHAP values do not carry over exactly through a non-linear
+   map, so on the calibrated-probability scale the size and order of the
+   contributions can differ (and, rarely, the sign of a small one).
 
 Iranian uses group-aware CV folds (duplicate rows stay in one fold). Its OOB
 score can still be optimistic: a bootstrap sample may hold one copy of a
@@ -34,9 +45,11 @@ Outputs:
 """
 
 import argparse
+import sys
 
 import matplotlib
-matplotlib.use('Agg')
+if 'ipykernel' not in sys.modules:  # scripts: no display; notebooks keep inline plots
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -65,9 +78,12 @@ from src.explain import (
 OUT_DIR = RESULTS_DIR / 'rf_analysis'
 FIG_DIR = FIGURES_DIR / 'rf'
 DATASETS = ['ibm', 'orange', 'iranian']
+# Curve points cover every value of RF_PARAM_GRID (n_estimators 100/200/500,
+# max_depth 5/10/15/None) plus a few in between; _with_tuned also adds the
+# tuned value, so the chosen setting is always scored and marked.
 CURVES = {
     'classifier__n_estimators': [50, 100, 200, 300, 500],
-    'classifier__max_depth': [3, 5, 8, 12, None],
+    'classifier__max_depth': [3, 5, 8, 10, 12, 15, None],
 }
 QUICK_CURVES = {
     'classifier__n_estimators': [50, 200],
@@ -77,6 +93,18 @@ QUICK_CURVES = {
 
 def _label(value):
     return 'None' if value is None else str(value)
+
+
+def _with_tuned(curves, tuned):
+    """Curve values plus the tuned value of each parameter (numbers sorted, None last)."""
+    result = {}
+    for param, values in curves.items():
+        values = list(values)
+        if param in tuned and tuned[param] not in values:
+            values.append(tuned[param])
+        numbers = sorted(value for value in values if value is not None)
+        result[param] = numbers + ([None] if None in values else [])
+    return result
 
 
 def validation_curves(pipeline, X_train, y_train, groups, curves):
@@ -114,7 +142,7 @@ def plot_validation_curves(curve_table, tuned, dataset_name):
             ax.plot(x, mean, marker='o', color=color, label=label)
             ax.fill_between(x, mean - std, mean + std, color=color, alpha=0.15)
         labels = data['value'].tolist()
-        tuned_label = _label(tuned.get(param))
+        tuned_label = _label(tuned.get(f'classifier__{param}'))
         if tuned_label in labels:
             ax.axvline(labels.index(tuned_label), color='#555555', linestyle='--',
                        label=f'tuned = {tuned_label}')
@@ -200,13 +228,20 @@ def pick_cases(y_true, proba):
 
 
 def local_explanations(fitted, X_test, y_test, proba):
+    """Top SHAP factors of the TP / FN / FP customers.
+
+    rf_score is the uncalibrated forest's churn score that SHAP decomposes,
+    not the calibrated probability of the deployed model.
+    """
     rows = []
     for case, index in pick_cases(y_test, proba).items():
         for rank, factor in enumerate(explain_customer(fitted, X_test.iloc[[index]], top_n=6), 1):
+            factor = dict(factor)
+            factor['source_features'] = ', '.join(factor.get('source_features', []))
             rows.append({
                 'case': case,
                 'test_row': index,
-                'churn_probability': round(float(proba[index]), 4),
+                'rf_score': round(float(proba[index]), 4),
                 'actual_churn': int(np.asarray(y_test)[index]),
                 'rank': rank,
                 **factor,
@@ -226,8 +261,8 @@ def plot_local(local, dataset_name):
         colors = ['#E45756' if c > 0 else '#4C78A8' for c in data['contribution']]
         ax.barh(labels, data['contribution'], color=colors)
         ax.axvline(0, color='#333333', linewidth=0.8)
-        probability = data['churn_probability'].iloc[0]
-        ax.set_title(f'{case}\np(churn) = {probability:.2f}', fontsize=9.5, fontweight='bold')
+        score = data['rf_score'].iloc[0]
+        ax.set_title(f'{case}\nRF score (uncalibrated) = {score:.2f}', fontsize=9.5, fontweight='bold')
         ax.set_xlabel('SHAP contribution (red = towards churn)')
         ax.tick_params(axis='y', labelsize=8)
         ax.grid(axis='x', alpha=0.25)
@@ -247,7 +282,10 @@ def analyse_dataset(dataset_name, quick=False):
         if key in ('classifier__n_estimators', 'classifier__max_depth')
     }
 
-    curves = validation_curves(pipeline, X_train, y_train, groups, QUICK_CURVES if quick else CURVES)
+    curves = validation_curves(
+        pipeline, X_train, y_train, groups,
+        _with_tuned(QUICK_CURVES if quick else CURVES, tuned),
+    )
     curves.to_csv(OUT_DIR / f'{dataset_name}_validation_curve.csv', index=False)
     plot_validation_curves(curves, tuned, dataset_name)
     print(f'[rf_analysis] {dataset_name}: validation curves done')

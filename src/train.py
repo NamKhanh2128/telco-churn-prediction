@@ -37,7 +37,8 @@ import joblib
 import numpy as np
 import sklearn
 import matplotlib
-matplotlib.use("Agg")
+if "ipykernel" not in sys.modules:  # scripts: no display; notebooks keep inline plots
+    matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from sklearn.model_selection import (
     train_test_split,
@@ -55,7 +56,7 @@ from sklearn.svm import LinearSVC, SVC
 
 from src.config import (
     TEST_SIZE, VALIDATION_SIZE, RANDOM_STATE, CV_FOLDS,
-    MODELS_DIR, RESULTS_DIR, DATASET_PATH,
+    MODELS_DIR, RESULTS_DIR, DATASET_PATH, SANDBOXED,
     DROP_TOTAL_CHARGES, CALIBRATE_PROBABILITIES, CALIBRATION_METHOD,
     CALIBRATION_ENSEMBLE,
     PRIMARY_SCORING, SEARCH_ITERATIONS, SEARCH_N_JOBS,
@@ -84,7 +85,8 @@ from src.evaluate import (
 from src.optimize_threshold import (
     find_cost_optimal_threshold, plot_threshold_analysis, save_model_config,
 )
-from src.explain import plot_shap_summary, plot_aggregated_importance
+from src.explain import input_features, plot_shap_summary, plot_aggregated_importance
+from src.compare_datasets import make_deployed_model
 
 
 # ═══════════════════════════════════════════════════════════
@@ -336,17 +338,15 @@ def main(drop_total_charges=None):
     print("\n[7/9] Cost-based threshold optimization (RF)...")
     rf_pipeline = results["RandomForest"]["pipeline"]
 
-    rf_deployed = rf_pipeline
+    # Same construction as src.compare_datasets: the tuned RF is cloned before
+    # calibration, so the saved model holds one forest (not an extra fitted copy).
+    rf_deployed = make_deployed_model(rf_pipeline, X_train, y_train)
+    rf_deployed.fit(X_train, y_train)
     if CALIBRATE_PROBABILITIES:
-        rf_deployed = CalibratedClassifierCV(
-            estimator=rf_pipeline,
-            method=CALIBRATION_METHOD,
-            cv=CV_FOLDS,
-            ensemble=CALIBRATION_ENSEMBLE,
-            n_jobs=SEARCH_N_JOBS,
+        print(
+            f'  Calibrated RF probabilities with method={CALIBRATION_METHOD}, '
+            f'ensemble={CALIBRATION_ENSEMBLE}'
         )
-        rf_deployed.fit(X_train, y_train)
-        print(f'  Calibrated RF probabilities with method={CALIBRATION_METHOD}')
 
     y_proba_val = rf_deployed.predict_proba(X_val)[:, 1]
     threshold_result = find_cost_optimal_threshold(
@@ -402,9 +402,9 @@ def main(drop_total_charges=None):
     if DO_SHAP:
         print("\n  Running SHAP analysis...")
         try:
-            original_columns = list(X.columns)
             plot_shap_summary(rf_pipeline, X_test)
-            plot_aggregated_importance(rf_pipeline, X_test, original_columns)
+            # Raw + engineered inputs, so the engineered features are not silently dropped.
+            plot_aggregated_importance(rf_pipeline, X_test, input_features(rf_pipeline))
         except Exception as e:
             print(f"  WARNING: SHAP failed: {e}")
             print("  Skipping SHAP plots. Install shap: pip install shap")
@@ -419,7 +419,9 @@ def main(drop_total_charges=None):
             m_pipe = rf_deployed if eval_name == "RandomForest" else results[eval_name]["pipeline"]
             if hasattr(m_pipe, "predict_proba"):
                 m_val_p = m_pipe.predict_proba(X_val)[:, 1]
-                m_opt = find_cost_optimal_threshold(y_val, m_val_p, cost_mode='classification')
+                m_opt = find_cost_optimal_threshold(
+                    y_val, m_val_p, cost_mode='classification', verbose=False,
+                )
                 m_test_p = m_pipe.predict_proba(X_test)[:, 1]
                 m_test_pol = compute_metrics(y_test, (m_test_p >= m_opt['best_threshold']).astype(int), m_test_p)
                 all_models_policy[eval_name] = {
@@ -447,12 +449,17 @@ def main(drop_total_charges=None):
     with open(RESULTS_DIR / 'policy_metrics.json', 'w') as f:
         json.dump(policy_payload, f, indent=2, default=str)
 
+    # MDI importance summed over one-hot columns. `global_feature_importance`
+    # keeps only raw customer columns (the API shows the customer's value next
+    # to each factor); the engineered features hold the rest of the total and
+    # are listed with everything else in `global_feature_importance_model_inputs`.
     global_feature_importance = {}
+    model_input_importance = {}
     try:
         fitted_preprocessor = rf_pipeline.named_steps['preprocessor']
         fitted_classifier = rf_pipeline.named_steps['classifier']
         transformed_names = list(fitted_preprocessor.get_feature_names_out())
-        for original_feature in X.columns:
+        for original_feature in input_features(rf_pipeline):
             importance = 0.0
             for index, transformed_name in enumerate(transformed_names):
                 clean_name = transformed_name
@@ -463,7 +470,9 @@ def main(drop_total_charges=None):
                 if clean_name == original_feature or clean_name.startswith(f'{original_feature}_'):
                     importance += float(fitted_classifier.feature_importances_[index])
             if importance > 0:
-                global_feature_importance[original_feature] = round(importance, 8)
+                model_input_importance[original_feature] = round(importance, 8)
+                if original_feature in X.columns:
+                    global_feature_importance[original_feature] = round(importance, 8)
     except Exception as exc:
         print(f'  WARNING: could not save global feature importance: {exc}')
 
@@ -475,11 +484,15 @@ def main(drop_total_charges=None):
         'categorical_features': list(categorical_features),
         'feature_engineering': USE_FEATURE_ENGINEERING,
         'global_feature_importance': global_feature_importance,
+        'global_feature_importance_model_inputs': model_input_importance,
         'total_charges_policy': 'drop' if drop_total_charges else 'keep_ablation',
+        'tuned': DO_TUNING,
+        'rf_best_params': results['RandomForest'].get('best_params'),
         'calibration': {
             'enabled': CALIBRATE_PROBABILITIES,
             'method': CALIBRATION_METHOD if CALIBRATE_PROBABILITIES else None,
             'cv_folds': CV_FOLDS if CALIBRATE_PROBABILITIES else None,
+            'cv': 'stratified' if CALIBRATE_PROBABILITIES else None,
             'ensemble': CALIBRATION_ENSEMBLE if CALIBRATE_PROBABILITIES else None,
         },
         'split': {
@@ -546,6 +559,13 @@ if __name__ == '__main__':
         help='Generate optional SHAP figures after training.',
     )
     args = parser.parse_args()
+    if args.keep_total_charges and not SANDBOXED:
+        parser.error(
+            '--keep-total-charges would overwrite the deployed model and its config in '
+            'models/. Ablation A1 is `python -m src.compare_datasets --dataset ibm '
+            '--keep-total-charges` (separate run folder). To run this script with '
+            'TotalCharges anyway, set CHURN_OUTPUT_ROOT to a scratch folder first.'
+        )
     if args.tune:
         DO_TUNING = True
     if args.with_shap:

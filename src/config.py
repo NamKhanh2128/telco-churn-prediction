@@ -5,15 +5,28 @@ Tập trung toàn bộ paths, hyperparameters, cost ratios ở đây
 để không hard-code rải rác trong code.
 """
 
+import os
 from pathlib import Path
 
 # ─── Paths ───────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_RAW_DIR = PROJECT_ROOT / "data" / "raw"
 DATA_PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-MODELS_DIR = PROJECT_ROOT / "models"
-FIGURES_DIR = PROJECT_ROOT / "figures"
-RESULTS_DIR = PROJECT_ROOT / "results"
+
+# Output sandbox: with CHURN_OUTPUT_ROOT=<folder>, every script writes its
+# models/, figures/ and results/ under that folder instead of the repo, so a
+# smoke run (`python -m src.reproduce --quick` sets it to results/quick) never
+# overwrites the tracked artifacts. Data is always read from data/raw/.
+OUTPUT_ROOT = Path(os.environ.get("CHURN_OUTPUT_ROOT") or PROJECT_ROOT).resolve()
+MODELS_DIR = OUTPUT_ROOT / "models"
+FIGURES_DIR = OUTPUT_ROOT / "figures"
+RESULTS_DIR = OUTPUT_ROOT / "results"
+SANDBOXED = OUTPUT_ROOT != PROJECT_ROOT.resolve()
+
+# Tuned hyper-parameters of the official run (tracked in git). Written by
+# `python -m src.compare_datasets --tune`; read by every analysis script.
+TUNED_PARAMS_FILENAME = "tuned_params.json"
+OFFICIAL_TUNED_PARAMS_PATH = PROJECT_ROOT / "models" / TUNED_PARAMS_FILENAME
 
 DATASET_FILENAME = "WA_Fn-UseC_-Telco-Customer-Churn.csv"
 DATASET_PATH = DATA_RAW_DIR / DATASET_FILENAME
