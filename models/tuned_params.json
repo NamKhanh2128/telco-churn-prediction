@@ -1,0 +1,95 @@
+{
+  "_note": "Written by `python -m src.compare_datasets --tune`; read by the analysis scripts through src.compare_datasets.tuned_params(). Do not edit by hand.",
+  "runs": {
+    "ibm": {
+      "LogReg": {
+        "C": 5.0
+      },
+      "RandomForest": {
+        "n_estimators": 500,
+        "min_samples_split": 5,
+        "min_samples_leaf": 5,
+        "max_features": "log2",
+        "max_depth": 10
+      }
+    },
+    "ibm_with_total_charges": {
+      "LogReg": {
+        "C": 5.0
+      },
+      "RandomForest": {
+        "n_estimators": 500,
+        "min_samples_split": 5,
+        "min_samples_leaf": 5,
+        "max_features": "log2",
+        "max_depth": 10
+      }
+    },
+    "iranian": {
+      "LogReg": {
+        "C": 10.0
+      },
+      "RandomForest": {
+        "n_estimators": 200,
+        "min_samples_split": 2,
+        "min_samples_leaf": 1,
+        "max_features": "log2",
+        "max_depth": null
+      }
+    },
+    "orange": {
+      "LogReg": {
+        "C": 0.1
+      },
+      "RandomForest": {
+        "n_estimators": 500,
+        "min_samples_split": 5,
+        "min_samples_leaf": 2,
+        "max_features": "sqrt",
+        "max_depth": null
+      }
+    }
+  },
+  "provenance": {
+    "ibm": {
+      "dataset_sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91",
+      "split": "stratified_row_wise",
+      "split_seed": 42,
+      "train_rows": 4929,
+      "cv": "StratifiedKFold(n_splits=5)",
+      "scoring": "average_precision",
+      "search_iterations": 30,
+      "sklearn_version": "1.8.0"
+    },
+    "ibm_with_total_charges": {
+      "dataset_sha256": "16320c9c1ec72448db59aa0a26a0b95401046bef5d02fd3aeb906448e3055e91",
+      "split": "stratified_row_wise",
+      "split_seed": 42,
+      "train_rows": 4929,
+      "cv": "StratifiedKFold(n_splits=5)",
+      "scoring": "average_precision",
+      "search_iterations": 30,
+      "sklearn_version": "1.8.0"
+    },
+    "iranian": {
+      "dataset_sha256": "90d5fb6bd1630cd4de4b4d28fcf8b4cb92a8f6ab7484605b0799d47386f7dbe1",
+      "split": "group_aware",
+      "split_seed": 42,
+      "train_rows": 2244,
+      "cv": "StratifiedGroupKFold(n_splits=5)",
+      "scoring": "average_precision",
+      "search_iterations": 30,
+      "sklearn_version": "1.8.0"
+    },
+    "orange": {
+      "dataset_sha256": "5d0aecc74b6feda887e9d2735363d51ff671b373153863562b7bbfb36464e0a4",
+      "split": "stratified_row_wise",
+      "split_seed": 42,
+      "train_rows": 2333,
+      "cv": "StratifiedKFold(n_splits=5)",
+      "scoring": "average_precision",
+      "search_iterations": 30,
+      "sklearn_version": "1.8.0"
+    }
+  }
+}
