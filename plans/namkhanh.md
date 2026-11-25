@@ -23,6 +23,22 @@
 - [x] `--quick` chỉ ghi snapshot vào `results/` (bị ignore), không ghi đè snapshot chính thức.
 - [x] Tạo branch và plan cho từng người.
 
+## Đã xong (25/11) — rà soát và làm chắc phần của Khánh
+
+- [x] Spec tri thức toàn bộ phần của Khánh: `docs/spec/spec-phan-khanh.md` (giao thức, từng module,
+  kết quả, hợp đồng tích hợp với từng bạn, hạn chế, runbook đến ngày bảo vệ).
+- [x] Sửa lỗi sau review: model deploy chỉ còn một rừng (clone trước khi calibrate); `train.py` và
+  `compare_datasets.py` dùng chung thứ tự cột IBM (cùng một RF); tham số tune lưu ở
+  `models/tuned_params.json` (có trong git); calibration CV chia theo nhóm cho Iranian; ablation dùng
+  RF đã tune; lựa chọn calibration đọc trên validation; thêm kiểm định t có hiệu chỉnh Nadeau–Bengio;
+  sửa vạch "tuned" trên validation curve.
+- [x] Điểm nối cho các bạn: `--quick` chạy trong sandbox `results/quick/` (không đổi file trong git);
+  `reproduce` tự chạy `src.policy_analysis` khi có; fragment `results/<tên>/snapshot.md` tự vào
+  snapshot §10; `fit_deployed_rf`, `split_data`; test contract tự kiểm tra mọi mô hình trong
+  `BENCHMARK_MODELS`; cờ `--models`.
+- [x] Chạy lại toàn bộ (`python -m src.reproduce`) và cập nhật snapshot, bản nháp 4.1/4.2/5.2, slide,
+  câu trả lời bảo vệ.
+
 ## Đọc trước
 
 - `PLAN.md`, `mustdo.md` (mục P0), `reports/results_snapshot.md`
@@ -166,8 +182,8 @@
 ```bash
 python -m src.train --tune --with-shap                # pipeline IBM đầy đủ
 python -m src.compare_datasets --dataset all --tune   # benchmark 3 dataset
-python -m src.reproduce                               # chạy final (~15 phút)
-python -m src.reproduce --quick                       # kiểm tra nhanh, không ghi đè snapshot
+python -m src.reproduce                               # chạy final (~40 phút)
+python -m src.reproduce --quick                       # kiểm tra nhanh, ghi vào results/quick/ (không đổi file trong git)
 python -m pytest -q
 git fetch origin && git merge origin/main
 ```
