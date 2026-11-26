@@ -28,6 +28,7 @@ def find_cost_optimal_threshold(
     cost_mode='classification',
     cost_action=None,
     thresholds=None,
+    verbose=True,
 ):
     """
     Tìm ngưỡng quyết định tối ưu theo chi phí business.
@@ -42,6 +43,8 @@ def find_cost_optimal_threshold(
         Cost of False Positive (retention offer wasted)
     cost_fn : float
         Cost of False Negative (customer lost)
+    verbose : bool
+        Print a short summary (pass False when calling it in a loop).
 
     Returns
     -------
@@ -117,18 +120,21 @@ def find_cost_optimal_threshold(
         "f1_scores": f1_scores,
     }
 
-    print(f"\n{'=' * 55}")
-    print(f"  COST-BASED THRESHOLD OPTIMIZATION")
-    print(f"{'=' * 55}")
-    print(f"  Cost FP (retention offer):  ${cost_fp}")
-    print(f"  Cost FN (lost customer):    ${cost_fn}")
-    print(f"  ──────────────────────────────────")
-    print(f"  Default threshold (0.5):    ${default_cost:,.0f}")
-    print(f"  Optimal threshold ({best_threshold:.3f}):  ${best_cost:,.0f}")
-    print(f"  F1-optimal threshold:       {best_f1_threshold:.3f}")
-    print(f"  ──────────────────────────────────")
-    print(f"  SAVINGS: ${savings:,.0f}")
-    print(f"{'=' * 55}\n")
+    if verbose:
+        # ASCII only, so it also prints in consoles without UTF-8 (Windows cp1252).
+        rule = '-' * 34
+        print(f"\n{'=' * 55}")
+        print("  COST-BASED THRESHOLD OPTIMIZATION")
+        print(f"{'=' * 55}")
+        print(f"  Cost FP (retention offer):  ${cost_fp}")
+        print(f"  Cost FN (lost customer):    ${cost_fn}")
+        print(f"  {rule}")
+        print(f"  Default threshold (0.5):    ${default_cost:,.0f}")
+        print(f"  Optimal threshold ({best_threshold:.3f}):  ${best_cost:,.0f}")
+        print(f"  F1-optimal threshold:       {best_f1_threshold:.3f}")
+        print(f"  {rule}")
+        print(f"  SAVINGS: ${savings:,.0f}")
+        print(f"{'=' * 55}\n")
 
     return result
 

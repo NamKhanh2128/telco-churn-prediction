@@ -8,15 +8,16 @@ two checks that are important for the Iranian dataset:
 2. Compare repeated row-wise stratified splits with group-aware splits where
    identical feature vectors cannot cross train/validation/test boundaries.
 
-The stability run uses the tuned Random Forest configuration from the Iranian
-run but does not re-tune or calibrate on every seed.  It is a split-stability
-and leakage-sensitivity check, not the final deployment benchmark.
+The stability run uses the Random Forest parameters tuned on the Iranian run
+(models/tuned_params.json, read through src.compare_datasets.tuned_params;
+FIXED_RF_PARAMS fill anything not tuned) but does not re-tune or calibrate on
+every seed.  It is a split-stability and leakage-sensitivity check, not the
+final deployment benchmark.
 '''
 
 import argparse
 import json
 import sys
-from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -27,10 +28,12 @@ from sklearn.impute import SimpleImputer
 from sklearn.model_selection import StratifiedGroupKFold, train_test_split
 from sklearn.pipeline import Pipeline
 
+from src.compare_datasets import tuned_params
 from src.config import (
     COST_FN,
     COST_FP,
     DATA_RAW_DIR,
+    FIGURES_DIR,
     RESULTS_DIR,
     SEARCH_N_JOBS,
     TEST_SIZE,
@@ -46,7 +49,8 @@ if hasattr(sys.stdout, 'reconfigure'):
 
 DATA_PATH = DATA_RAW_DIR / 'iranian-uci' / 'Customer Churn.csv'
 AUDIT_DIR = RESULTS_DIR / 'dataset_runs' / 'iranian'
-FIGURE_DIR = Path(__file__).resolve().parent.parent / 'figures' / 'dataset_runs'
+# Through src.config, so CHURN_OUTPUT_ROOT (quick runs) also redirects this figure.
+FIGURE_DIR = FIGURES_DIR / 'dataset_runs'
 SOURCE_URL = (
     'https://archive.ics.uci.edu/dataset/563/'
     'iranian%2Bchurn%2Bdataset'
@@ -282,18 +286,32 @@ def audit_dataset(frame, X, y, groups):
     return report
 
 
+# Used only for parameters the Iranian benchmark has not tuned (e.g. on a fresh
+# clone before the first `--tune` run).
+FIXED_RF_PARAMS = {
+    'n_estimators': 200,
+    'max_depth': None,
+    'min_samples_split': 2,
+    'min_samples_leaf': 1,
+    'max_features': 'log2',
+}
+
+
+def rf_params():
+    '''RF parameters of the stability check: tuned Iranian values over FIXED_RF_PARAMS.'''
+    params = dict(FIXED_RF_PARAMS)
+    params.update(tuned_params('iranian', 'RandomForest'))
+    return params
+
+
 def _build_model(seed):
-    '''Build the fixed tuned RF used for the stability sensitivity check.'''
-    classifier = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=None,
-        min_samples_split=2,
-        min_samples_leaf=1,
-        max_features='log2',
-        class_weight='balanced_subsample',
-        random_state=seed,
-        n_jobs=SEARCH_N_JOBS,
-    )
+    '''Build the tuned RF used for the stability sensitivity check.'''
+    classifier = RandomForestClassifier(**{
+        'class_weight': 'balanced_subsample',
+        **rf_params(),
+        'random_state': seed,
+        'n_jobs': SEARCH_N_JOBS,
+    })
     return Pipeline(
         [
             ('imputer', SimpleImputer(strategy='median')),

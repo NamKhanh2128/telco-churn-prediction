@@ -36,6 +36,21 @@ from sklearn.pipeline import Pipeline
 from sklearn.preprocessing import StandardScaler, OneHotEncoder
 
 
+# Raw IBM columns each engineered feature is computed from. Used to explain an
+# engineered feature in terms the customer data actually contains.
+ENGINEERED_FEATURE_SOURCES = {
+    'charges_per_tenure': ['MonthlyCharges', 'tenure'],
+    'total_additional_services': [
+        'OnlineSecurity', 'OnlineBackup', 'DeviceProtection',
+        'TechSupport', 'StreamingTV', 'StreamingMovies',
+    ],
+    'streaming_services': ['StreamingTV', 'StreamingMovies'],
+    'security_support_services': ['OnlineSecurity', 'TechSupport'],
+    'is_high_risk_contract': ['Contract', 'PaymentMethod'],
+    'has_bundle': ['InternetService', 'PhoneService'],
+}
+
+
 class TelcoFeatureEngineer(BaseEstimator, TransformerMixin):
     """
     Leak-free feature engineering transformer for Telco customer churn.
