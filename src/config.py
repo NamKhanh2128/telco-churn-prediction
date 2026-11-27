@@ -136,23 +136,24 @@ RF_PARAM_GRID = {
 DT_PARAM_GRID = {
     "classifier__max_depth": [3, 5, 7, 10, 15, None],
     "classifier__min_samples_split": [2, 5, 10, 20],
-    "classifier__min_samples_leaf": [1, 2, 5, 10],
+    "classifier__min_samples_leaf": [1, 2, 5, 10, 20],
     "classifier__criterion": ["gini", "entropy"],
+    "classifier__ccp_alpha": [0.0, 0.001, 0.005, 0.01],
 }
 
 KNN_PARAM_GRID = {
-    "classifier__n_neighbors": [3, 5, 7, 11, 15, 21],
+    "classifier__n_neighbors": [3, 5, 7, 11, 15, 21, 31, 51],
     "classifier__weights": ["uniform", "distance"],
     "classifier__metric": ["euclidean", "manhattan"],
 }
 
 SVM_PARAM_GRID = {
-    "classifier__C": [0.01, 0.1, 1, 10],
+    "classifier__C": [0.001, 0.01, 0.1, 1, 10, 50],
     "classifier__loss": ["hinge", "squared_hinge"],
 }
 
 # Search space for the calibrated RBF SVM (CalibratedClassifierCV wraps SVC).
 SVM_RBF_PARAM_GRID = {
-    "classifier__estimator__C": [0.1, 0.5, 1, 5, 10],
-    "classifier__estimator__gamma": ["scale", 0.01, 0.05, 0.1],
+    "classifier__estimator__C": [0.1, 0.5, 1, 5, 10, 50],
+    "classifier__estimator__gamma": ["scale", 0.001, 0.005, 0.01, 0.05, 0.1],
 }

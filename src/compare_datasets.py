@@ -26,6 +26,9 @@ from sklearn.calibration import CalibratedClassifierCV
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
 from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
+from sklearn.svm import LinearSVC, SVC
+from sklearn.tree import DecisionTreeClassifier
 from sklearn.model_selection import (
     ParameterGrid,
     RandomizedSearchCV,
@@ -54,9 +57,17 @@ from src.config import (
     TUNED_PARAMS_FILENAME,
     USE_FEATURE_ENGINEERING,
     VALIDATION_SIZE,
+    DEFAULT_DT_PARAMS,
+    DEFAULT_KNN_PARAMS,
     DEFAULT_LR_PARAMS,
     DEFAULT_RF_PARAMS,
+    DEFAULT_SVM_PARAMS,
+    DEFAULT_SVM_RBF_PARAMS,
+    DT_PARAM_GRID,
+    KNN_PARAM_GRID,
     RF_PARAM_GRID,
+    SVM_PARAM_GRID,
+    SVM_RBF_PARAM_GRID,
 )
 from src.data_loader import detect_feature_types, get_file_sha256
 from src.evaluate import compute_metrics
@@ -101,7 +112,15 @@ DATASET_PROFILES = {
 # comparison tables, src.model_stability (10 seeds + tests vs RF),
 # src.calibration_analysis and the snapshot. tests/test_experiments.py checks
 # every model listed here (fits, valid probabilities, grid keys match).
-BENCHMARK_MODELS = ['Dummy', 'LogReg', 'RandomForest']
+BENCHMARK_MODELS = [
+    'Dummy',
+    'LogReg',
+    'DecisionTree',
+    'RandomForest',
+    'KNN',
+    'SVM_Linear',
+    'SVM_RBF',
+]
 # RandomForest (deployed model) and LogReg (comparison columns of
 # dataset_comparison.csv) are always run, even with --models.
 REQUIRED_MODELS = ('LogReg', 'RandomForest')
@@ -111,7 +130,11 @@ REQUIRED_MODELS = ('LogReg', 'RandomForest')
 # ("classifier__estimator__C"); _grid_for_pipeline adapts them to the pipeline.
 MODEL_PARAM_GRIDS = {
     'LogReg': {'classifier__C': [0.01, 0.1, 1.0, 5.0, 10.0]},
+    'DecisionTree': DT_PARAM_GRID,
     'RandomForest': RF_PARAM_GRID,
+    'KNN': KNN_PARAM_GRID,
+    'SVM_Linear': SVM_PARAM_GRID,
+    'SVM_RBF': SVM_RBF_PARAM_GRID,
 }
 
 LONG_TABLE_METRICS = [
@@ -403,12 +426,21 @@ def _build_model(name, numeric_features, categorical_features, is_ibm=False):
     elif name == 'LogReg':
         classifier = _calibrated(LogisticRegression(**DEFAULT_LR_PARAMS))
         scale_numeric = True
+    elif name == 'DecisionTree':
+        classifier = DecisionTreeClassifier(**DEFAULT_DT_PARAMS)
+        scale_numeric = False
+    elif name == 'KNN':
+        classifier = KNeighborsClassifier(**DEFAULT_KNN_PARAMS)
+        scale_numeric = True
+    elif name == 'SVM_Linear':
+        classifier = _calibrated(LinearSVC(**DEFAULT_SVM_PARAMS))
+        scale_numeric = True
+    elif name == 'SVM_RBF':
+        classifier = _calibrated(SVC(**DEFAULT_SVM_RBF_PARAMS))
+        scale_numeric = True
     elif name == 'Dummy':
         classifier = DummyClassifier(strategy='most_frequent')
         scale_numeric = False
-    # ── Comparison models (DT, KNN, SVM): DecisionTree, KNN, SVM_Linear, SVM_RBF ──
-    # Add one `elif name == '...':` branch per model here, using the DEFAULT_*_PARAMS
-    # of src.config; wrap SVMs in _calibrated(...) as src.train does.
     else:
         raise ValueError(
             f'Unknown model {name!r}: add a branch for it in _build_model '
