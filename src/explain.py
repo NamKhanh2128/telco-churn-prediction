@@ -20,6 +20,7 @@ import shap
 import matplotlib.pyplot as plt
 
 from src.config import FIGURES_DIR
+from src.preprocessing import ENGINEERED_FEATURE_SOURCES
 
 
 def compute_shap_values(pipeline, X_test, feature_names=None):
@@ -119,19 +120,136 @@ def aggregate_shap_to_original_features(shap_values, encoded_feature_names, orig
     return pd.DataFrame(aggregated)
 
 
+def input_features(pipeline):
+    """Columns the pipeline's preprocessor consumes (raw + engineered features)."""
+    preprocessor = pipeline.named_steps["preprocessor"]
+    features = []
+    for name, _, columns in preprocessor.transformers_:
+        if name == "remainder" or isinstance(columns, str):
+            continue
+        features.extend(list(columns))
+    return features
+
+
+def aggregate_signed_shap(shap_values, encoded_feature_names, features):
+    """Sum SIGNED SHAP values of encoded columns back to each input feature.
+
+    Unlike aggregate_shap_to_original_features (absolute values, for global
+    importance), the sign is kept: positive pushes towards churn, negative
+    away from it. Used for per-customer explanations.
+    """
+    aggregated = {}
+    for feature in features:
+        indices = []
+        for index, encoded_name in enumerate(encoded_feature_names):
+            clean_name = encoded_name
+            for prefix in ["num__", "cat__"]:
+                if clean_name.startswith(prefix):
+                    clean_name = clean_name[len(prefix):]
+            if clean_name == feature or clean_name.startswith(f"{feature}_"):
+                indices.append(index)
+        if indices:
+            aggregated[feature] = np.asarray(shap_values)[:, indices].sum(axis=1)
+    return pd.DataFrame(aggregated)
+
+
+def _base_pipelines(model):
+    """Fitted pipelines inside a model (one per CalibratedClassifierCV fold)."""
+    calibrated = getattr(model, "calibrated_classifiers_", None)
+    if calibrated:
+        return [calibrated_clf.estimator for calibrated_clf in calibrated]
+    return [model]
+
+
+def signed_contributions(model, customer_df):
+    """Signed SHAP contribution of every model input for one customer.
+
+    ``model`` is a fitted tree pipeline or the deployed
+    CalibratedClassifierCV(pipeline); for the latter the SHAP values of each
+    calibrated fold's forest are averaged (one forest when ensemble=False).
+
+    Returns ``(contributions, view)``: a Series indexed by model input (raw and
+    engineered features) and a one-row frame with the customer's raw and
+    engineered values.
+    """
+    pipelines = _base_pipelines(model)
+    total = None
+    view = customer_df
+    for pipeline in pipelines:
+        shap_values, _, encoded_names = compute_shap_values(pipeline, customer_df)
+        signed = aggregate_signed_shap(
+            shap_values, encoded_names, input_features(pipeline),
+        ).iloc[0]
+        total = signed if total is None else total.add(signed, fill_value=0.0)
+        if "feature_engineer" in pipeline.named_steps:
+            view = pipeline.named_steps["feature_engineer"].transform(customer_df)
+    if total is None:
+        return pd.Series(dtype=float), view
+    return total / len(pipelines), view
+
+
+def _impact(ratio):
+    return "high" if ratio > 0.6 else "medium" if ratio > 0.3 else "low"
+
+
+def explain_customer(model, customer_df, top_n=5):
+    """Per-customer SHAP explanation for the API and the report.
+
+    Works with a plain tree pipeline or with the deployed
+    CalibratedClassifierCV(pipeline) (see signed_contributions).
+
+    Scale: a contribution is a SHAP value of the forest's churn score (the
+    average vote of the trees), i.e. BEFORE Platt calibration. The
+    contributions add up to "forest score - average forest score", not to the
+    calibrated probability the API shows. Calibration is monotonic, so it keeps
+    the customers' risk ranking; but SHAP values do not carry over exactly
+    through a non-linear map, so the factor order and direction are those of
+    the forest score and usually, not necessarily, match an explanation of the
+    calibrated probability.
+
+    Returns a list (largest |contribution| first) of
+    {"feature", "value", "contribution", "direction", "impact",
+    "source_features"} where direction is "increases_churn" /
+    "decreases_churn", impact is "high" / "medium" / "low" relative to the
+    strongest factor, and source_features lists the raw columns a feature is
+    computed from (the feature itself for raw columns, e.g. MonthlyCharges and
+    tenure for the engineered charges_per_tenure).
+    """
+    contributions, view = signed_contributions(model, customer_df)
+    if contributions.empty:
+        return []
+    ordered = contributions.reindex(contributions.abs().sort_values(ascending=False).index)
+    strongest = float(ordered.abs().iloc[0]) or 1.0
+
+    factors = []
+    for feature, contribution in ordered.head(top_n).items():
+        factors.append({
+            "feature": feature,
+            "value": str(view[feature].iloc[0]) if feature in view.columns else "N/A",
+            "contribution": round(float(contribution), 4),
+            "direction": "increases_churn" if contribution > 0 else "decreases_churn",
+            "impact": _impact(abs(float(contribution)) / strongest),
+            "source_features": list(ENGINEERED_FEATURE_SOURCES.get(feature, [feature])),
+        })
+    return factors
+
+
 def get_top_factors_for_customer(pipeline, customer_df, original_columns, top_n=5):
     """
-    Get top factors driving churn prediction for a single customer.
+    Top factors of one customer in the short format {feature, value, impact}.
 
-    Used by the API to explain predictions.
+    Kept for callers of the older API. Only the columns in
+    ``original_columns`` are ranked (by |signed SHAP contribution|), so every
+    factor has a value the customer actually entered. Works with a plain tree
+    pipeline and with the deployed calibrated model.
 
     Parameters
     ----------
-    pipeline : fitted sklearn Pipeline
+    pipeline : fitted tree pipeline or CalibratedClassifierCV(pipeline)
     customer_df : pd.DataFrame
         Single row DataFrame with customer features
     original_columns : list[str]
-        Original feature names
+        Raw feature names to rank
     top_n : int
         Number of top factors to return
 
@@ -140,38 +258,24 @@ def get_top_factors_for_customer(pipeline, customer_df, original_columns, top_n=
     list[dict]
         [{"feature": "Contract", "value": "Month-to-month", "impact": "high"}, ...]
     """
-    shap_values, _, feature_names = compute_shap_values(pipeline, customer_df)
-
-    # Aggregate
-    agg_df = aggregate_shap_to_original_features(shap_values, feature_names, original_columns)
-
-    if agg_df.empty:
+    contributions, _ = signed_contributions(pipeline, customer_df)
+    contributions = contributions.reindex(
+        [column for column in original_columns if column in contributions.index]
+    )
+    if contributions.empty:
         return []
 
-    # Get importance for this customer (row 0)
-    importance = agg_df.iloc[0].sort_values(ascending=False)
-
-    # Classify impact
-    max_val = importance.max()
+    importance = contributions.abs().sort_values(ascending=False)
+    max_val = float(importance.iloc[0])
     factors = []
     for feat, val in importance.head(top_n).items():
-        ratio = val / max_val if max_val > 0 else 0
-        if ratio > 0.6:
-            impact = "high"
-        elif ratio > 0.3:
-            impact = "medium"
-        else:
-            impact = "low"
-
-        # Get the actual value
+        ratio = float(val) / max_val if max_val > 0 else 0.0
         feat_value = customer_df[feat].iloc[0] if feat in customer_df.columns else "N/A"
-
         factors.append({
             "feature": feat,
             "value": str(feat_value),
-            "impact": impact,
+            "impact": _impact(ratio),
         })
-
     return factors
 
 

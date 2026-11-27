@@ -3,8 +3,8 @@
   "cost_action": 50,
   "threshold_source": "validation",
   "model": "random_forest",
-  "threshold": 0.0633,
+  "threshold": 0.054,
   "cost_fp": 50,
   "cost_fn": 500,
-  "savings_vs_default": 41900.0
+  "savings_vs_default": 40350.0
 }

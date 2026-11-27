@@ -18,8 +18,10 @@ import numpy as np
 import pandas as pd
 import sklearn
 import matplotlib
-matplotlib.use('Agg')
+if 'ipykernel' not in sys.modules:  # scripts: no display; notebooks keep inline plots
+    matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+from sklearn.base import clone
 from sklearn.calibration import CalibratedClassifierCV
 from sklearn.dummy import DummyClassifier
 from sklearn.ensemble import RandomForestClassifier
@@ -33,28 +35,30 @@ from sklearn.model_selection import (
 )
 
 from src.config import (
+    CALIBRATION_ENSEMBLE,
     CALIBRATION_METHOD,
     CALIBRATE_PROBABILITIES,
     CV_FOLDS,
     COST_FN,
     COST_FP,
     DATA_RAW_DIR,
-    ENGINEERED_NUMERIC_FEATURES,
     FIGURES_DIR,
     MODELS_DIR,
+    OFFICIAL_TUNED_PARAMS_PATH,
     PRIMARY_SCORING,
     RANDOM_STATE,
     RESULTS_DIR,
     SEARCH_ITERATIONS,
     SEARCH_N_JOBS,
     TEST_SIZE,
+    TUNED_PARAMS_FILENAME,
     USE_FEATURE_ENGINEERING,
     VALIDATION_SIZE,
     DEFAULT_LR_PARAMS,
     DEFAULT_RF_PARAMS,
     RF_PARAM_GRID,
 )
-from src.data_loader import get_file_sha256
+from src.data_loader import detect_feature_types, get_file_sha256
 from src.evaluate import compute_metrics
 from src.optimize_threshold import find_cost_optimal_threshold
 from src.preprocessing import (
@@ -85,6 +89,69 @@ DATASET_PROFILES = {
         'target': 'Churn',
     },
 }
+
+
+# ─── Benchmark framework ─────────────────────────────────────
+# Models evaluated on every dataset, in this order. To add a model (e.g. the
+# DT/KNN/SVM comparison models):
+#   1. add its name here;
+#   2. add a branch in _build_model (classifier + whether numeric columns are scaled);
+#   3. for --tune, add its grid to MODEL_PARAM_GRIDS (grid itself lives in src.config).
+# Everything else picks the new model up automatically: the per-run and long
+# comparison tables, src.model_stability (10 seeds + tests vs RF),
+# src.calibration_analysis and the snapshot. tests/test_experiments.py checks
+# every model listed here (fits, valid probabilities, grid keys match).
+BENCHMARK_MODELS = ['Dummy', 'LogReg', 'RandomForest']
+# RandomForest (deployed model) and LogReg (comparison columns of
+# dataset_comparison.csv) are always run, even with --models.
+REQUIRED_MODELS = ('LogReg', 'RandomForest')
+
+# Search spaces used with --tune. Keys may be written for a bare classifier
+# ("classifier__C") or for one wrapped in CalibratedClassifierCV
+# ("classifier__estimator__C"); _grid_for_pipeline adapts them to the pipeline.
+MODEL_PARAM_GRIDS = {
+    'LogReg': {'classifier__C': [0.01, 0.1, 1.0, 5.0, 10.0]},
+    'RandomForest': RF_PARAM_GRID,
+}
+
+LONG_TABLE_METRICS = [
+    'accuracy',
+    'precision_churn',
+    'recall_churn',
+    'f1_churn',
+    'f1_macro',
+    'balanced_accuracy',
+    'roc_auc',
+    'average_precision',
+    'brier_score',
+    'ece',
+]
+
+
+def _grid_for_pipeline(model_name, pipeline):
+    '''Return the --tune grid for a model, with keys matching the pipeline.
+
+    CalibratedClassifierCV hides the real estimator one level deeper, so a
+    grid written as "classifier__C" must become "classifier__estimator__C"
+    (and vice versa). Returns None when the model has no grid.
+    '''
+    grid = MODEL_PARAM_GRIDS.get(model_name)
+    if not grid:
+        return None
+    classifier = pipeline.named_steps.get('classifier')
+    wrapped = isinstance(classifier, CalibratedClassifierCV)
+    adapted = {}
+    for key, values in grid.items():
+        if not key.startswith('classifier__'):
+            raise ValueError(f'Grid key {key!r} must start with "classifier__"')
+        param = key[len('classifier__'):]
+        if param.startswith('estimator__'):
+            param = param[len('estimator__'):]
+        new_key = (
+            f'classifier__estimator__{param}' if wrapped else f'classifier__{param}'
+        )
+        adapted[new_key] = list(values)
+    return adapted
 
 
 def _write_json(path, payload):
@@ -178,6 +245,132 @@ def load_dataset(dataset_name, keep_total_charges=False):
     return X, y, profile, audit
 
 
+def feature_lists(X, dataset_name):
+    '''Numeric/categorical columns the pipeline expects for one dataset.
+
+    IBM uses src.data_loader.detect_feature_types — the same order as
+    src.train — plus the engineered numeric features that TelcoFeatureEngineer
+    adds inside the pipeline. Column order changes which features a seeded
+    forest samples, so both scripts must agree to train the same model.
+    '''
+    if dataset_name == 'ibm':
+        return detect_feature_types(X, verbose=False)
+    numeric_features = list(X.select_dtypes(include=np.number).columns)
+    categorical_features = [
+        column for column in X.columns if column not in numeric_features
+    ]
+    return numeric_features, categorical_features
+
+
+# ─── Tuned hyper-parameters ──────────────────────────────────
+# `--tune` writes the best parameters of each run to models/tuned_params.json
+# (tracked in git), as short names: {"ibm": {"RandomForest": {"max_depth": 10}}}.
+# ablation / model_stability / calibration_analysis / rf_analysis read them
+# through tuned_params(), so every analysis uses the configuration of the main
+# benchmark, also on a fresh clone. Untuned runs never overwrite the file.
+_MISSING_TUNED_WARNED = set()
+
+
+def _tuned_params_paths():
+    '''Where tuned parameters are looked up: the current outputs, then the official file.'''
+    paths = [MODELS_DIR / TUNED_PARAMS_FILENAME]
+    if OFFICIAL_TUNED_PARAMS_PATH not in paths:
+        paths.append(OFFICIAL_TUNED_PARAMS_PATH)
+    return paths
+
+
+def load_tuned_params():
+    '''All tuned parameters: {run_name: {model_name: {param: value}}} ({} if none).
+
+    The official file is read first and the current outputs (a sandbox) are
+    laid on top per (run, model), so a sandbox that tuned only one dataset or
+    a few models does not hide the official parameters of the others.
+    '''
+    merged = {}
+    for path in reversed(_tuned_params_paths()):
+        if path.exists():
+            with open(path, encoding='utf-8') as handle:
+                for run_name, models in json.load(handle).get('runs', {}).items():
+                    merged.setdefault(run_name, {}).update(models)
+    return merged
+
+
+def tuned_params(run_name, model_name):
+    '''Best hyper-parameters of the last tuned run (short names), or {}.
+
+    Falls back to the defaults of src.config with a one-time warning when the
+    model has a grid but was never tuned on this run.
+    '''
+    params = (load_tuned_params().get(run_name) or {}).get(model_name)
+    if params is None:
+        if model_name in MODEL_PARAM_GRIDS and (run_name, model_name) not in _MISSING_TUNED_WARNED:
+            _MISSING_TUNED_WARNED.add((run_name, model_name))
+            print(
+                f'[compare] WARNING: no tuned parameters for {model_name} on {run_name!r} '
+                f'in {TUNED_PARAMS_FILENAME}; using the defaults of src.config. '
+                f'Run `python -m src.compare_datasets --tune` to tune.'
+            )
+        return {}
+    return dict(params)
+
+
+def save_tuned_params(run_name, model_results, provenance, partial=False):
+    '''Record the best parameters of one tuned run, keeping the other runs.
+
+    partial=False (a run over every benchmark model) replaces the run's entry,
+    so a model removed from BENCHMARK_MODELS disappears; partial=True (--models
+    subset) only updates the models that were re-tuned.
+    '''
+    path = MODELS_DIR / TUNED_PARAMS_FILENAME
+    payload = {}
+    if path.exists():
+        with open(path, encoding='utf-8') as handle:
+            payload = json.load(handle)
+    payload['_note'] = (
+        'Written by `python -m src.compare_datasets --tune`; read by the analysis '
+        'scripts through src.compare_datasets.tuned_params(). Do not edit by hand.'
+    )
+    entries = {
+        model_name: {
+            key.split('__')[-1]: value for key, value in result['best_params'].items()
+        }
+        for model_name, result in model_results.items()
+        if result.get('best_params')
+    }
+    runs = payload.setdefault('runs', {})
+    if partial:
+        runs.setdefault(run_name, {}).update(entries)
+    else:
+        runs[run_name] = entries
+    payload.setdefault('provenance', {})[run_name] = provenance
+    payload['runs'] = dict(sorted(payload['runs'].items()))
+    payload['provenance'] = dict(sorted(payload['provenance'].items()))
+    _write_json(path, payload)
+    return path
+
+
+def build_benchmark_model(model_name, X, dataset_name, run_name=None):
+    '''Benchmark pipeline for one model, with tuned parameters when available.'''
+    numeric_features, categorical_features = feature_lists(X, dataset_name)
+    pipeline = _build_model(
+        model_name,
+        numeric_features,
+        categorical_features,
+        is_ibm=(dataset_name == 'ibm'),
+    )
+    params = tuned_params(run_name or dataset_name, model_name)
+    grid = _grid_for_pipeline(model_name, pipeline) or {}
+    usable = {}
+    for key, value in params.items():
+        param = key.split('__')[-1]
+        for grid_key in grid:
+            if grid_key.split('__')[-1] == param:
+                usable[grid_key] = value
+    if usable:
+        pipeline.set_params(**usable)
+    return pipeline
+
+
 def _scores(estimator, X):
     if hasattr(estimator, 'predict_proba'):
         return estimator.predict_proba(X)[:, 1]
@@ -186,31 +379,50 @@ def _scores(estimator, X):
     return None
 
 
+def _calibrated(estimator):
+    '''Platt-scale a model whose scores are not probabilities (LogReg, SVM).
+
+    With CALIBRATE_PROBABILITIES the model is wrapped in CalibratedClassifierCV,
+    so its grid keys become "classifier__estimator__<param>" (handled by
+    _grid_for_pipeline).
+    '''
+    if not CALIBRATE_PROBABILITIES:
+        return estimator
+    return CalibratedClassifierCV(estimator, method=CALIBRATION_METHOD, cv=CV_FOLDS)
+
+
 def _build_model(name, numeric_features, categorical_features, is_ibm=False):
+    '''Unfitted pipeline [feature_engineer (IBM)] -> preprocessor -> classifier.
+
+    Each branch sets the classifier and whether numeric columns are scaled
+    (True for distance-based and linear models, False for trees).
+    '''
     if name == 'RandomForest':
         classifier = RandomForestClassifier(**DEFAULT_RF_PARAMS)
         scale_numeric = False
     elif name == 'LogReg':
-        base_lr = LogisticRegression(**DEFAULT_LR_PARAMS)
-        if CALIBRATE_PROBABILITIES:
-            classifier = CalibratedClassifierCV(
-                base_lr,
-                method=CALIBRATION_METHOD,
-                cv=CV_FOLDS,
-            )
-        else:
-            classifier = base_lr
+        classifier = _calibrated(LogisticRegression(**DEFAULT_LR_PARAMS))
         scale_numeric = True
-    else:
+    elif name == 'Dummy':
         classifier = DummyClassifier(strategy='most_frequent')
         scale_numeric = False
+    # ── Comparison models (DT, KNN, SVM): DecisionTree, KNN, SVM_Linear, SVM_RBF ──
+    # Add one `elif name == '...':` branch per model here, using the DEFAULT_*_PARAMS
+    # of src.config; wrap SVMs in _calibrated(...) as src.train does.
+    else:
+        raise ValueError(
+            f'Unknown model {name!r}: add a branch for it in _build_model '
+            f'(and a grid in MODEL_PARAM_GRIDS if it should be tuned).'
+        )
 
     preprocessor = build_preprocessor(
         numeric_features,
         categorical_features,
         scale_numeric=scale_numeric,
     )
-    feature_engineer = TelcoFeatureEngineer(enabled=True) if is_ibm else None
+    feature_engineer = (
+        TelcoFeatureEngineer(enabled=USE_FEATURE_ENGINEERING) if is_ibm else None
+    )
     return build_model_pipeline(
         preprocessor,
         classifier,
@@ -218,20 +430,65 @@ def _build_model(name, numeric_features, categorical_features, is_ibm=False):
     )
 
 
-def _fit_model(name, pipeline, X_train, y_train, tune=False):
+def feature_groups(X):
+    '''Group id per row: identical feature vectors share a group.'''
+    return pd.util.hash_pandas_object(X, index=False).astype(str).to_numpy()
+
+
+def cv_splitter(groups=None):
+    '''CV used for tuning and analysis.
+
+    With groups (Iranian, group-aware protocol) duplicate feature vectors stay
+    in the same fold, so cross-validation scores are not inflated by copies.
+    '''
+    if groups is not None:
+        return StratifiedGroupKFold(
+            n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE,
+        )
+    return StratifiedKFold(n_splits=CV_FOLDS, shuffle=True, random_state=RANDOM_STATE)
+
+
+def calibration_cv(X_train, y_train, groups=None):
+    '''CV for CalibratedClassifierCV: group-aware folds when groups are given.
+
+    On Iranian a row-wise CV would put copies of one customer on both sides of
+    a fold, so the sigmoid would be fitted on optimistic predictions.
+    '''
+    if groups is None:
+        return CV_FOLDS
+    return list(cv_splitter(groups).split(X_train, y_train, groups))
+
+
+def make_deployed_model(rf_pipeline, X_train, y_train, groups=None):
+    '''Unfitted deployed model: the RF pipeline + the calibration of src.config.
+
+    The RF is cloned first. CalibratedClassifierCV keeps the estimator it is
+    given in `.estimator`; passing an already fitted forest would store a
+    second, unused copy in the saved model (twice the file size).
+    '''
+    if not CALIBRATE_PROBABILITIES:
+        return clone(rf_pipeline)
+    return CalibratedClassifierCV(
+        estimator=clone(rf_pipeline),
+        method=CALIBRATION_METHOD,
+        cv=calibration_cv(X_train, y_train, groups),
+        ensemble=CALIBRATION_ENSEMBLE,
+        n_jobs=SEARCH_N_JOBS,
+    )
+
+
+def _fit_model(name, pipeline, X_train, y_train, tune=False, groups=None):
+    '''Fit one benchmark model; with tune=True search its grid (if it has one).'''
     start = time.time()
     best_params = None
+    grid = _grid_for_pipeline(name, pipeline) if tune else None
 
-    if tune and name == 'RandomForest':
-        cv = StratifiedKFold(
-            n_splits=CV_FOLDS,
-            shuffle=True,
-            random_state=RANDOM_STATE,
-        )
-        n_iter = min(SEARCH_ITERATIONS, len(list(ParameterGrid(RF_PARAM_GRID))))
+    if grid:
+        cv = cv_splitter(groups)
+        n_iter = min(SEARCH_ITERATIONS, len(list(ParameterGrid(grid))))
         search = RandomizedSearchCV(
             pipeline,
-            param_distributions=RF_PARAM_GRID,
+            param_distributions=grid,
             n_iter=n_iter,
             scoring={
                 'average_precision': 'average_precision',
@@ -244,7 +501,7 @@ def _fit_model(name, pipeline, X_train, y_train, tune=False):
             random_state=RANDOM_STATE,
             return_train_score=True,
         )
-        search.fit(X_train, y_train)
+        search.fit(X_train, y_train, groups=groups)
         fitted = search.best_estimator_
         best_params = search.best_params_
     else:
@@ -300,12 +557,17 @@ def _group_split_indices(X, y, groups, seed=RANDOM_STATE):
     return np.asarray(train), np.asarray(validation), np.asarray(test)
 
 
-def _split_data(X, y, dataset_name='ibm', split_method='default'):
-    '''Split dataset into 70/15/15 train/val/test splits.'''
-    if dataset_name == 'iranian' and split_method != 'row_wise':
+def is_group_aware(dataset_name, split_method='default'):
+    '''Iranian is split by duplicate groups unless row_wise is asked for.'''
+    return dataset_name == 'iranian' and split_method != 'row_wise'
+
+
+def _split_data(X, y, dataset_name='ibm', split_method='default', seed=RANDOM_STATE):
+    '''Split dataset into 70/15/15 train/val/test splits (seed-controlled).'''
+    if is_group_aware(dataset_name, split_method):
         # Group-aware split to prevent identical feature vectors crossing boundaries
-        groups = pd.util.hash_pandas_object(X, index=False).astype(str).to_numpy()
-        train_idx, val_idx, test_idx = _group_split_indices(X, y, groups, seed=RANDOM_STATE)
+        groups = feature_groups(X)
+        train_idx, val_idx, test_idx = _group_split_indices(X, y, groups, seed=seed)
         return (
             X.iloc[train_idx].reset_index(drop=True),
             X.iloc[val_idx].reset_index(drop=True),
@@ -319,7 +581,7 @@ def _split_data(X, y, dataset_name='ibm', split_method='default'):
         X,
         y,
         test_size=TEST_SIZE,
-        random_state=RANDOM_STATE,
+        random_state=seed,
         stratify=y,
     )
     validation_fraction = VALIDATION_SIZE / (1 - TEST_SIZE)
@@ -327,52 +589,68 @@ def _split_data(X, y, dataset_name='ibm', split_method='default'):
         X_train_dev,
         y_train_dev,
         test_size=validation_fraction,
-        random_state=RANDOM_STATE,
+        random_state=seed,
         stratify=y_train_dev,
     )
     return X_train, X_val, X_test, y_train, y_val, y_test
 
 
-def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method='default'):
-    '''Train one dataset and write artifacts under a dataset-specific folder.'''
-    run_name = dataset_name
+def run_name_for(dataset_name, keep_total_charges=False, split_method='default'):
+    '''Folder name of one run; variants never overwrite the main run.'''
     if dataset_name == 'ibm' and keep_total_charges:
-        run_name = 'ibm_with_total_charges'
+        return 'ibm_with_total_charges'
+    if dataset_name == 'iranian' and split_method == 'row_wise':
+        return 'iranian_row_wise'
+    return dataset_name
+
+
+def _run_label(dataset_name, run_name):
+    label = DATASET_PROFILES[dataset_name]['label']
+    suffix = {
+        'ibm_with_total_charges': ' (A1: +TotalCharges)',
+        'iranian_row_wise': ' (row-wise split)',
+    }.get(run_name, '')
+    return label + suffix
+
+
+def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method='default',
+                models=None):
+    '''Train one dataset and write artifacts under a dataset-specific folder.
+
+    models: optional subset of BENCHMARK_MODELS; RandomForest and LogReg are
+    always included (deployed model and comparison columns).
+    '''
+    run_name = run_name_for(dataset_name, keep_total_charges, split_method)
+    model_names = [
+        name for name in BENCHMARK_MODELS
+        if models is None or name in models or name in REQUIRED_MODELS
+    ]
 
     X, y, profile, audit = load_dataset(
         dataset_name,
         keep_total_charges=keep_total_charges,
     )
 
-    numeric_features = list(X.select_dtypes(include=np.number).columns)
-    categorical_features = [
-        column for column in X.columns if column not in numeric_features
-    ]
-
+    numeric_features, categorical_features = feature_lists(X, dataset_name)
     is_ibm = (dataset_name == 'ibm')
-    if is_ibm and USE_FEATURE_ENGINEERING:
-        for feat in ENGINEERED_NUMERIC_FEATURES:
-            if feat not in numeric_features:
-                numeric_features.append(feat)
 
     X_train, X_val, X_test, y_train, y_val, y_test = _split_data(
         X, y, dataset_name=dataset_name, split_method=split_method,
     )
 
-    actual_split = (
-        'group_aware'
-        if (dataset_name == 'iranian' and split_method != 'row_wise')
-        else 'stratified_row_wise'
-    )
+    group_aware = is_group_aware(dataset_name, split_method)
+    actual_split = 'group_aware' if group_aware else 'stratified_row_wise'
+    # Group-aware protocol: tuning and calibration CV keep duplicates in one fold.
+    train_groups = feature_groups(X_train) if group_aware else None
 
-    dataset_label = profile['label']
+    dataset_label = _run_label(dataset_name, run_name)
     print(f'\n=== {dataset_label} ({run_name}) ===')
     print(f'rows={len(X):,}, features={X.shape[1]}, churn={y.mean():.2%}, split={actual_split}')
     print(f'train={len(X_train):,}, validation={len(X_val):,}, test={len(X_test):,}')
 
     model_results = {}
     fitted_models = {}
-    for model_name in ['Dummy', 'LogReg', 'RandomForest']:
+    for model_name in model_names:
         pipeline = _build_model(
             model_name,
             numeric_features,
@@ -385,6 +663,7 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method
             X_train,
             y_train,
             tune=tune,
+            groups=train_groups,
         )
         y_pred = fitted.predict(X_test)
         y_score = _scores(fitted, X_test)
@@ -397,15 +676,21 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method
         fitted_models[model_name] = fitted
 
     rf_base = fitted_models['RandomForest']
-    rf_deployed = rf_base
-    if CALIBRATE_PROBABILITIES:
-        rf_deployed = CalibratedClassifierCV(
-            estimator=rf_base,
-            method=CALIBRATION_METHOD,
-            cv=CV_FOLDS,
-            n_jobs=SEARCH_N_JOBS,
-        )
-        rf_deployed.fit(X_train, y_train)
+    rf_deployed = make_deployed_model(rf_base, X_train, y_train, groups=train_groups)
+    rf_deployed.fit(X_train, y_train)
+
+    if tune:
+        tuned_path = save_tuned_params(run_name, model_results, {
+            'dataset_sha256': audit['sha256'],
+            'split': actual_split,
+            'split_seed': RANDOM_STATE,
+            'train_rows': int(len(X_train)),
+            'cv': f'{type(cv_splitter(train_groups)).__name__}(n_splits={CV_FOLDS})',
+            'scoring': PRIMARY_SCORING,
+            'search_iterations': SEARCH_ITERATIONS,
+            'sklearn_version': sklearn.__version__,
+        }, partial=models is not None)
+        print(f'[compare] Saved tuned parameters of {run_name!r} to {tuned_path}')
 
     y_val_proba = rf_deployed.predict_proba(X_val)[:, 1]
     threshold_result = find_cost_optimal_threshold(
@@ -431,8 +716,9 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method
 
     metadata = {
         'dataset_key': dataset_name,
-        'dataset_label': profile['label'],
+        'dataset_label': dataset_label,
         'run_name': run_name,
+        'tuned': tune,
         'source_path': str(profile['path']),
         'dataset_sha256': audit['sha256'],
         'rows': audit['rows'],
@@ -457,6 +743,11 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method
             'enabled': CALIBRATE_PROBABILITIES,
             'method': CALIBRATION_METHOD if CALIBRATE_PROBABILITIES else None,
             'cv_folds': CV_FOLDS if CALIBRATE_PROBABILITIES else None,
+            'cv': (
+                ('group_aware' if group_aware else 'stratified')
+                if CALIBRATE_PROBABILITIES else None
+            ),
+            'ensemble': CALIBRATION_ENSEMBLE if CALIBRATE_PROBABILITIES else None,
         },
         'python_version': platform.python_version(),
         'sklearn_version': sklearn.__version__,
@@ -476,7 +767,7 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method
     }
     comparison = {
         'dataset': run_name,
-        'dataset_label': profile['label'],
+        'dataset_label': dataset_label,
         'rows': audit['rows'],
         'features': audit['features'],
         'churn_rate': round(audit['churn_rate'], 6),
@@ -513,6 +804,10 @@ def run_dataset(dataset_name, tune=False, keep_total_charges=False, split_method
     })
     pd.DataFrame([comparison]).to_csv(
         result_dir / 'comparison_table.csv',
+        index=False,
+    )
+    pd.DataFrame(_model_rows(run_name, dataset_label, model_results)).to_csv(
+        result_dir / 'model_comparison.csv',
         index=False,
     )
 
@@ -608,7 +903,9 @@ def save_dataset_comparison_plot(table):
         0.018,
         '\n'.join(footer_lines)
         + '\nBar labels are exact test metrics. Iranian uses leak-free group-aware split.'
-        + '\nThreshold-dependent Policy F1 uses validation-selected business threshold (Cost FP=$50, FN=$500).',
+        + '\nThreshold-dependent Policy F1 uses the validation-selected cost threshold '
+        # "$" starts matplotlib mathtext, so it must be escaped.
+        + f'(placeholder costs FP=\\${COST_FP}, FN=\\${COST_FN}).',
         ha='center',
         va='bottom',
         fontsize=8.5,
@@ -631,6 +928,57 @@ def save_dataset_comparison_plot(table):
     return figure_path
 
 
+def _model_rows(run_name, dataset_label, model_results):
+    '''One row per benchmark model with shared test metrics (threshold 0.5).'''
+    rows = []
+    for model_name, result in model_results.items():
+        metrics = result['metrics']
+        row = {
+            'dataset': run_name,
+            'dataset_label': dataset_label,
+            'model': model_name,
+        }
+        row.update({key: metrics.get(key) for key in LONG_TABLE_METRICS})
+        row['train_time_s'] = result.get('train_time_s')
+        best_params = result.get('best_params')
+        row['best_params'] = (
+            json.dumps(best_params, sort_keys=True, default=str) if best_params else ''
+        )
+        rows.append(row)
+    return rows
+
+
+def update_long_table(new_rows, replace='dataset'):
+    '''Merge per-model rows into results/dataset_runs/model_comparison_long.csv.
+
+    replace='dataset' (default): rows of datasets that were just re-run replace
+    their previous rows entirely, so a model removed from BENCHMARK_MODELS also
+    disappears. replace='pair': only the re-run (dataset, model) pairs are
+    replaced — used with --models, which re-runs a subset of the models.
+    '''
+    path = RESULTS_DIR / 'dataset_runs' / 'model_comparison_long.csv'
+    path.parent.mkdir(parents=True, exist_ok=True)
+    current = pd.DataFrame(new_rows)
+    if path.exists():
+        previous = pd.read_csv(path)
+        if replace == 'pair':
+            rerun = set(zip(current['dataset'], current['model']))
+            keep = [pair not in rerun for pair in zip(previous['dataset'], previous['model'])]
+            previous = previous[keep]
+        else:
+            previous = previous[~previous['dataset'].isin(current['dataset'].unique())]
+        current = pd.concat([previous, current], ignore_index=True)
+    order = {name: index for index, name in enumerate(BENCHMARK_MODELS)}
+    current['_order'] = current['model'].map(order).fillna(len(order))
+    current = (
+        current.sort_values(['dataset', '_order', 'model'])
+        .drop(columns='_order')
+        .reset_index(drop=True)
+    )
+    current.to_csv(path, index=False)
+    return current
+
+
 def update_comparison_table(rows):
     '''Merge current runs into one comparison table without overwriting rows.'''
     comparison_dir = RESULTS_DIR / 'dataset_runs'
@@ -648,6 +996,40 @@ def update_comparison_table(rows):
         current.to_dict(orient='records'),
     )
     return current
+
+
+# ─── Public helpers for the other analyses ───────────────────
+# Stable names for notebooks and the other members' scripts (e.g. the policy
+# analysis): import these instead of the underscored functions above.
+split_data = _split_data
+build_model = _build_model
+fit_model = _fit_model
+
+
+def fit_deployed_rf(dataset_name='ibm', seed=RANDOM_STATE, split_method='default'):
+    '''Fit the deployed model (tuned RF + configured calibration) on one split.
+
+    For analyses that need the production model on one or several seeds, such
+    as the cost/threshold policy study. Choose thresholds on the validation
+    split and report on the test split. Returns a dict with the fitted
+    ``model``, the six frames ``X_train, X_val, X_test, y_train, y_val,
+    y_test`` and the ``run_name`` whose tuned parameters were used.
+    '''
+    X, y, _, _ = load_dataset(dataset_name)
+    X_train, X_val, X_test, y_train, y_val, y_test = _split_data(
+        X, y, dataset_name=dataset_name, split_method=split_method, seed=seed,
+    )
+    groups = feature_groups(X_train) if is_group_aware(dataset_name, split_method) else None
+    run_name = run_name_for(dataset_name, split_method=split_method)
+    rf_pipeline = build_benchmark_model('RandomForest', X, dataset_name, run_name=run_name)
+    model = make_deployed_model(rf_pipeline, X_train, y_train, groups=groups)
+    model.fit(X_train, y_train)
+    return {
+        'model': model,
+        'run_name': run_name,
+        'X_train': X_train, 'X_val': X_val, 'X_test': X_test,
+        'y_train': y_train, 'y_val': y_val, 'y_test': y_test,
+    }
 
 
 def main():
@@ -669,12 +1051,18 @@ def main():
     parser.add_argument(
         '--tune',
         action='store_true',
-        help='Tune the Random Forest with the shared search protocol.',
+        help='Tune every model that has a grid in MODEL_PARAM_GRIDS.',
     )
     parser.add_argument(
         '--keep-total-charges',
         action='store_true',
         help='IBM-only ablation; keep TotalCharges in a separate run folder.',
+    )
+    parser.add_argument(
+        '--models',
+        nargs='+',
+        choices=BENCHMARK_MODELS,
+        help='Run only these models (RandomForest and LogReg are always run).',
     )
     args = parser.parse_args()
 
@@ -695,14 +1083,29 @@ def main():
                     args.keep_total_charges and dataset_name == 'ibm'
                 ),
                 split_method=args.split_method,
+                models=args.models,
             )
         )
 
     table = update_comparison_table(rows)
     comparison_figure = save_dataset_comparison_plot(table)
     comparison_dir = RESULTS_DIR / 'dataset_runs'
+
+    long_rows = []
+    for row in rows:
+        per_run = comparison_dir / row['dataset'] / 'model_comparison.csv'
+        long_rows.extend(pd.read_csv(per_run).to_dict(orient='records'))
+    long_table = update_long_table(long_rows, replace='pair' if args.models else 'dataset')
+
     print('\n=== DATASET COMPARISON ===')
     print(table.to_string(index=False))
+    print('\n=== ALL MODELS (test set, threshold 0.5) ===')
+    print(
+        long_table[
+            ['dataset', 'model', 'accuracy', 'precision_churn', 'recall_churn',
+             'f1_churn', 'roc_auc', 'average_precision']
+        ].to_string(index=False)
+    )
     print(f'\nSaved comparison to {comparison_dir}')
     print(f'Saved comparison figure to {comparison_figure}')
 
