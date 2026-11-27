@@ -5,15 +5,28 @@ Tập trung toàn bộ paths, hyperparameters, cost ratios ở đây
 để không hard-code rải rác trong code.
 """
 
+import os
 from pathlib import Path
 
 # ─── Paths ───────────────────────────────────────────────────
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 DATA_RAW_DIR = PROJECT_ROOT / "data" / "raw"
 DATA_PROCESSED_DIR = PROJECT_ROOT / "data" / "processed"
-MODELS_DIR = PROJECT_ROOT / "models"
-FIGURES_DIR = PROJECT_ROOT / "figures"
-RESULTS_DIR = PROJECT_ROOT / "results"
+
+# Output sandbox: with CHURN_OUTPUT_ROOT=<folder>, every script writes its
+# models/, figures/ and results/ under that folder instead of the repo, so a
+# smoke run (`python -m src.reproduce --quick` sets it to results/quick) never
+# overwrites the tracked artifacts. Data is always read from data/raw/.
+OUTPUT_ROOT = Path(os.environ.get("CHURN_OUTPUT_ROOT") or PROJECT_ROOT).resolve()
+MODELS_DIR = OUTPUT_ROOT / "models"
+FIGURES_DIR = OUTPUT_ROOT / "figures"
+RESULTS_DIR = OUTPUT_ROOT / "results"
+SANDBOXED = OUTPUT_ROOT != PROJECT_ROOT.resolve()
+
+# Tuned hyper-parameters of the official run (tracked in git). Written by
+# `python -m src.compare_datasets --tune`; read by every analysis script.
+TUNED_PARAMS_FILENAME = "tuned_params.json"
+OFFICIAL_TUNED_PARAMS_PATH = PROJECT_ROOT / "models" / TUNED_PARAMS_FILENAME
 
 DATASET_FILENAME = "WA_Fn-UseC_-Telco-Customer-Churn.csv"
 DATASET_PATH = DATA_RAW_DIR / DATASET_FILENAME
@@ -57,6 +70,10 @@ CV_FOLDS = 5
 DROP_TOTAL_CHARGES = True
 CALIBRATE_PROBABILITIES = True
 CALIBRATION_METHOD = 'sigmoid'
+# Deployed RF calibration: False = one forest + one sigmoid calibrator fitted on
+# cross-validated predictions. Same quality as ensemble=True (5 forests) but
+# ~4x smaller on disk — see `python -m src.calibration_analysis`.
+CALIBRATION_ENSEMBLE = False
 PRIMARY_SCORING = 'average_precision'
 SEARCH_ITERATIONS = 30
 SEARCH_N_JOBS = 4
@@ -119,23 +136,24 @@ RF_PARAM_GRID = {
 DT_PARAM_GRID = {
     "classifier__max_depth": [3, 5, 7, 10, 15, None],
     "classifier__min_samples_split": [2, 5, 10, 20],
-    "classifier__min_samples_leaf": [1, 2, 5, 10],
+    "classifier__min_samples_leaf": [1, 2, 5, 10, 20],
     "classifier__criterion": ["gini", "entropy"],
+    "classifier__ccp_alpha": [0.0, 0.001, 0.005, 0.01],
 }
 
 KNN_PARAM_GRID = {
-    "classifier__n_neighbors": [3, 5, 7, 11, 15, 21],
+    "classifier__n_neighbors": [3, 5, 7, 11, 15, 21, 31, 51],
     "classifier__weights": ["uniform", "distance"],
     "classifier__metric": ["euclidean", "manhattan"],
 }
 
 SVM_PARAM_GRID = {
-    "classifier__C": [0.01, 0.1, 1, 10],
+    "classifier__C": [0.001, 0.01, 0.1, 1, 10, 50],
     "classifier__loss": ["hinge", "squared_hinge"],
 }
 
 # Search space for the calibrated RBF SVM (CalibratedClassifierCV wraps SVC).
 SVM_RBF_PARAM_GRID = {
-    "classifier__estimator__C": [0.1, 0.5, 1, 5, 10],
-    "classifier__estimator__gamma": ["scale", 0.01, 0.05, 0.1],
+    "classifier__estimator__C": [0.1, 0.5, 1, 5, 10, 50],
+    "classifier__estimator__gamma": ["scale", 0.001, 0.005, 0.01, 0.05, 0.1],
 }

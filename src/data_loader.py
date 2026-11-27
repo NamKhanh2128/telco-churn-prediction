@@ -128,8 +128,14 @@ def get_feature_target(df):
     return df.drop(columns=[TARGET_COL]), df[TARGET_COL]
 
 
-def detect_feature_types(X, include_engineered=None):
-    '''Return numeric and categorical columns in deterministic order.'''
+def detect_feature_types(X, include_engineered=None, verbose=True):
+    '''Return numeric and categorical IBM columns in deterministic order.
+
+    The order matters: it fixes the column order the forest sees, and a
+    RandomForest with the same seed but a different column order is a
+    different forest. src.train and src.compare_datasets both use this
+    function for IBM, so the two scripts train the very same model.
+    '''
     if include_engineered is None:
         include_engineered = USE_FEATURE_ENGINEERING
 
@@ -140,6 +146,7 @@ def detect_feature_types(X, include_engineered=None):
                 numeric.append(feat)
 
     categorical = [column for column in X.columns if column not in numeric]
-    print(f'[data_loader] Numeric features ({len(numeric)}): {numeric}')
-    print(f'[data_loader] Categorical features ({len(categorical)}): {categorical}')
+    if verbose:
+        print(f'[data_loader] Numeric features ({len(numeric)}): {numeric}')
+        print(f'[data_loader] Categorical features ({len(categorical)}): {categorical}')
     return numeric, categorical
